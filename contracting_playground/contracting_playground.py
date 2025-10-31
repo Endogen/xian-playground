@@ -9,6 +9,70 @@ EDITOR_HEIGHT = "320px"
 STATE_HEIGHT = "360px"
 
 
+def expert_section() -> rx.Component:
+    return rx.accordion.root(
+        rx.accordion.item(
+            header=rx.accordion.trigger(
+                rx.hstack(
+                    rx.text("Expert"),
+                    rx.spacer(),
+                    rx.accordion.icon(),
+                ),
+                padding_y="2",
+            ),
+            content=rx.accordion.content(
+                rx.vstack(
+                    rx.text(
+                        "Advanced controls for signer identity and state visibility.",
+                        color="gray9",
+                    ),
+                    rx.hstack(
+                        rx.input(
+                            placeholder="Signer",
+                            value=PlaygroundState.signer_value,
+                            on_change=PlaygroundState.set_signer_value,
+                        ),
+                        rx.button(
+                            "Apply signer",
+                            on_click=PlaygroundState.apply_signer,
+                            color_scheme="violet",
+                        ),
+                        gap="3",
+                        width="100%",
+                    ),
+                    rx.hstack(
+                        rx.checkbox(
+                            checked=PlaygroundState.show_internal_state,
+                            on_change=PlaygroundState.set_show_internal_state,
+                        ),
+                        rx.text("Show state keys starting with '__'"),
+                        gap="2",
+                    ),
+                    rx.cond(
+                        PlaygroundState.expert_message != "",
+                        rx.text(
+                            PlaygroundState.expert_message,
+                            color=rx.cond(
+                                PlaygroundState.expert_is_error,
+                                "red",
+                                "green",
+                            ),
+                        ),
+                        rx.box(),
+                    ),
+                    gap="4",
+                    width="100%",
+                ),
+                padding_y="4",
+            ),
+            value="expert",
+        ),
+        type="single",
+        collapsible=True,
+        width="100%",
+    )
+
+
 def editor_section() -> rx.Component:
     return rx.box(
         rx.heading("Smart Contract", size="4"),
@@ -136,6 +200,7 @@ def index() -> rx.Component:
                 gap="5",
                 width="100%",
             ),
+            expert_section(),
             spacing="5",
             width="100%",
         ),

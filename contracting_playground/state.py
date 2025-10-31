@@ -41,6 +41,11 @@ class PlaygroundState(rx.State):
     deploy_message: str = ""
     deploy_is_error: bool = False
 
+    signer_value: str = contracting_service.get_signer()
+    expert_message: str = ""
+    expert_is_error: bool = False
+    show_internal_state: bool = False
+
     deployed_contracts: List[str] = []
     selected_contract: str = ""
     available_functions: List[str] = []
@@ -51,6 +56,7 @@ class PlaygroundState(rx.State):
     state_dump: str = "{}"
 
     def on_load(self):
+        self.signer_value = contracting_service.get_signer()
         return [
             type(self).refresh_contracts,
             type(self).refresh_state,
@@ -80,11 +86,11 @@ class PlaygroundState(rx.State):
             self.selected_contract = ""
             self.available_functions = []
             self.function_name = ""
-            return
+            return []
 
         if self.selected_contract not in contracts:
             self.selected_contract = contracts[0]
-            return [type(self).refresh_functions]
+
         return [type(self).refresh_functions]
 
     def refresh_functions(self):
@@ -102,7 +108,7 @@ class PlaygroundState(rx.State):
             self.function_name = functions[0]
 
     def refresh_state(self):
-        self.state_dump = contracting_service.dump_state()
+        self.state_dump = contracting_service.dump_state(self.show_internal_state)
 
     def deploy_contract(self):
         try:
@@ -120,6 +126,28 @@ class PlaygroundState(rx.State):
             type(self).refresh_contracts,
             type(self).refresh_state,
         ]
+
+    def set_signer_value(self, value: str):
+        self.signer_value = value
+
+    def apply_signer(self):
+        try:
+            updated = contracting_service.set_signer(self.signer_value)
+        except Exception as exc:
+            self.expert_is_error = True
+            self.expert_message = f"Failed to set signer: {exc}"
+            return []
+
+        self.signer_value = updated
+        self.expert_is_error = False
+        self.expert_message = f"Signer set to '{updated}'."
+        return []
+
+    def set_show_internal_state(self, value):
+        if isinstance(value, dict):
+            value = value.get("value", False)
+        self.show_internal_state = bool(value)
+        return [type(self).refresh_state]
 
     def _parse_kwargs(self) -> dict:
         raw = self.kwargs_input.strip()

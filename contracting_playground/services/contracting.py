@@ -74,6 +74,20 @@ class ContractingService:
         self._driver = Driver(storage_home=storage_home)
         self._client = ContractingClient(driver=self._driver)
 
+    def get_signer(self) -> str:
+        with self._lock:
+            return self._client.signer
+
+    def set_signer(self, signer: str) -> str:
+        clean = (signer or "").strip()
+        if not clean:
+            raise ValueError("Signer cannot be empty.")
+
+        with self._lock:
+            self._client.signer = clean
+
+        return clean
+
     def deploy(self, name: str, code: str) -> None:
         """Deploy a contract by name."""
         clean_name = (name or "").strip()
@@ -135,7 +149,7 @@ class ContractingService:
 
         return ContractingCallResult(result=result)
 
-    def dump_state(self) -> str:
+    def dump_state(self, show_internal: bool = False) -> str:
         snapshot: Dict[str, Dict[str, Any]] = {}
 
         with self._lock:
@@ -144,13 +158,13 @@ class ContractingService:
                 file_path = self._driver.contract_state / name
                 keys = hdf5.get_all_keys_from_file(str(file_path))
                 snapshot[name] = {
-                    key: _serialize_value(
-                        hdf5.get_value_from_disk(
-                            str(file_path),
-                            key.replace(constants.DELIMITER, constants.HDF5_GROUP_SEPARATOR),
-                        )
-                    )
+                    key: _serialize_value(value)
                     for key in keys
+                    if (show_internal or not key.startswith("__"))
+                    if (value := hdf5.get_value_from_disk(
+                        str(file_path),
+                        key.replace(constants.DELIMITER, constants.HDF5_GROUP_SEPARATOR),
+                    )) is not None
                 }
 
             runtime_snapshot: Dict[str, Dict[str, Any]] = {}
@@ -159,13 +173,13 @@ class ContractingService:
                     continue
                 keys = hdf5.get_all_keys_from_file(str(path))
                 runtime_snapshot[path.name] = {
-                    key: _serialize_value(
-                        hdf5.get_value_from_disk(
-                            str(path),
-                            key.replace(constants.DELIMITER, constants.HDF5_GROUP_SEPARATOR),
-                        )
-                    )
+                    key: _serialize_value(value)
                     for key in keys
+                    if (show_internal or not key.startswith("__"))
+                    if (value := hdf5.get_value_from_disk(
+                        str(path),
+                        key.replace(constants.DELIMITER, constants.HDF5_GROUP_SEPARATOR),
+                    )) is not None
                 }
 
             if runtime_snapshot:

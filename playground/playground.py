@@ -321,6 +321,7 @@ def editor_section() -> rx.Component:
                 "renderWhitespace": "selection",
             },
             on_change=PlaygroundState.update_code,
+            class_name="playground-monaco",
         ),
         rx.hstack(
             rx.spacer(),
@@ -611,6 +612,7 @@ app = rx.App(
     ),
     stylesheets=[
         "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
+        "/editor.css",
     ],
 )
 

@@ -1,0 +1,14 @@
+.playground-monaco,
+.playground-monaco .monaco-editor,
+.playground-monaco .monaco-editor-background,
+.playground-monaco .margin,
+.playground-monaco .margin-view-overlays,
+.playground-monaco .monaco-editor .margin,
+.playground-monaco .monaco-editor .minimap,
+.playground-monaco .monaco-editor .decorationsOverviewRuler {
+  background-color: #151518 !important;
+}
+
+.playground-monaco .monaco-editor {
+  border-radius: 8px;
+}

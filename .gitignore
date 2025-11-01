@@ -5,7 +5,7 @@ assets/external/
 *.db
 *.py[cod]
 .idea
-.contract_state
+.claude
 docs/
 AGENTS.md
 CLAUDE.md

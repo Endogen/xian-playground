@@ -455,7 +455,25 @@ def state_section() -> rx.Component:
             rx.hstack(
                 section_header(
                     "Contract State",
-                    "Live snapshot of every key stored in the driver. Refreshes after deployments and executions.",
+                    "Live snapshot of every key stored in the driver.",
+                ),
+                rx.spacer(),
+                align_items="center",
+                spacing="4",
+                width="100%",
+            ),
+            rx.hstack(
+                rx.checkbox(
+                    checked=PlaygroundState.show_internal_state,
+                    on_change=PlaygroundState.set_show_internal_state,
+                    color_scheme="cyan",
+                ),
+                rx.text(
+                    "Show protected state keys",
+                    color=COLORS["text_primary"],
+                    size="2",
+                    cursor="pointer",
+                    on_click=PlaygroundState.toggle_show_internal_state,
                 ),
                 rx.spacer(),
                 rx.cond(
@@ -482,24 +500,8 @@ def state_section() -> rx.Component:
                     ),
                 ),
                 align_items="center",
-                spacing="4",
-                width="100%",
-            ),
-            rx.hstack(
-                rx.checkbox(
-                    checked=PlaygroundState.show_internal_state,
-                    on_change=PlaygroundState.set_show_internal_state,
-                    color_scheme="cyan",
-                ),
-                rx.text(
-                    "Show protected state keys",
-                    color=COLORS["text_primary"],
-                    size="2",
-                    cursor="pointer",
-                    on_click=PlaygroundState.toggle_show_internal_state,
-                ),
                 gap="12px",
-                align_items="center",
+                width="100%",
             ),
             gap="12px",
             width="100%",

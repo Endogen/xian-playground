@@ -315,7 +315,7 @@ class ContractingService:
     def list_contracts(self) -> List[str]:
         with self._lock:
             contract_files = self._driver.get_contract_files()
-        return sorted(name for name in contract_files if name != "submission")
+        return sorted(contract_files)
 
     def list_functions(self, contract: str) -> List[str]:
         if not contract:

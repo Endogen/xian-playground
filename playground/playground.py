@@ -281,8 +281,8 @@ def expert_section() -> rx.Component:
 def editor_section() -> rx.Component:
     return card(
         section_header(
-            "Smart Contract",
-            "Write or paste a Python smart contract, pick a unique name, and deploy it into the local sandbox.",
+            "Write Contract",
+            "Write a Python smart contract, pick a unique name, and deploy it into the local sandbox.",
         ),
         styled_input(
             placeholder="Contract name",
@@ -347,6 +347,61 @@ def editor_section() -> rx.Component:
                 gap="8px",
             ),
             rx.fragment(),
+        ),
+    )
+
+
+def load_section() -> rx.Component:
+    return card(
+        section_header(
+            "Load Contract",
+            "Inspect deployed contract source code.",
+        ),
+        styled_select(
+            items=PlaygroundState.deployed_contracts,
+            value=PlaygroundState.load_selected_contract,
+            placeholder="Select a contract",
+            on_change=PlaygroundState.change_loaded_contract,
+            disabled=PlaygroundState.deployed_contracts == [],
+        ),
+        rx.cond(
+            PlaygroundState.load_selected_contract == "",
+            rx.box(
+                rx.text(
+                    "Select a deployed contract to review its source and exports.",
+                    color=COLORS["text_muted"],
+                    size="2",
+                ),
+                padding="12px",
+                border=f"1px dashed {COLORS['border']}",
+                border_radius="8px",
+            ),
+            rx.vstack(
+                rx.box(
+                    rx.code_block(
+                        rx.cond(
+                            PlaygroundState.loaded_contract_code == "",
+                            "# Source unavailable.",
+                            PlaygroundState.loaded_contract_code,
+                        ),
+                        language="python",
+                        wrap_lines=True,
+                        width="100%",
+                        min_height="360px",
+                        max_height="520px",
+                        overflow_y="auto",
+                        background=COLORS["bg_tertiary"],
+                    ),
+                    background=COLORS["bg_tertiary"],
+                    border=f"1px solid {COLORS['border']}",
+                    border_radius="8px",
+                    padding="12px",
+                    gap="12px",
+                    width="100%",
+                ),
+                gap="12px",
+                width="100%",
+            ),
         ),
     )
 
@@ -545,7 +600,9 @@ def index() -> rx.Component:
                     rx.box(
                         rx.grid(
                             editor_section(),
+                            load_section(),
                             execution_section(),
+                            state_section(),
                             columns="2",
                             spacing="5",
                             width="100%",
@@ -557,15 +614,15 @@ def index() -> rx.Component:
                     rx.box(
                         rx.vstack(
                             editor_section(),
+                            load_section(),
                             execution_section(),
+                            state_section(),
                             spacing="5",
                             width="100%",
                         ),
                         width="100%",
                         display=["block", "block", "none"],  # Show on mobile
                     ),
-                    # Full width state section
-                    state_section(),
                     # Full width expert section
                     expert_section(),
                     spacing="5",

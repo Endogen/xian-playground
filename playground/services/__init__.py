@@ -4,6 +4,8 @@ from .contracting import (
     ENVIRONMENT_FIELDS,
     DEFAULT_SIGNER,
     DEFAULT_ENVIRONMENT,
+    ContractDetails,
+    ContractExportInfo,
 )
 from .linting import lint_contract
 
@@ -13,5 +15,7 @@ __all__ = [
     "ENVIRONMENT_FIELDS",
     "DEFAULT_SIGNER",
     "DEFAULT_ENVIRONMENT",
+    "ContractDetails",
+    "ContractExportInfo",
     "lint_contract",
 ]

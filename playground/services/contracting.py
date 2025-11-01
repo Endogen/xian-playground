@@ -107,6 +107,19 @@ class ContractingCallResult:
         return str(serialized)
 
 
+@dataclass
+class ContractExportInfo:
+    name: str
+    docstring: str = ""
+
+
+@dataclass
+class ContractDetails:
+    name: str
+    source: str
+    exports: List[ContractExportInfo]
+
+
 class ContractingService:
     """Facade around `ContractingClient` with basic locking and helpers."""
 
@@ -307,18 +320,26 @@ class ContractingService:
         if not source:
             return []
 
-        try:
-            tree = ast.parse(source)
-        except SyntaxError:
-            return []
+        exports = self._parse_exports(source)
+        return sorted(export.name for export in exports)
 
-        exports: List[str] = []
-        for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef):
-                if any(_is_export_decorator(dec) for dec in node.decorator_list):
-                    exports.append(node.name)
+    def get_contract_details(self, contract: str) -> ContractDetails:
+        clean_name = (contract or "").strip()
+        if not clean_name:
+            raise ValueError("Contract name is required.")
 
-        return sorted(exports)
+        with self._lock:
+            source = self._driver.get_contract(clean_name)
+
+        if source is None:
+            raise ValueError(f"Contract '{clean_name}' is not deployed.")
+
+        exports = self._parse_exports(source)
+        return ContractDetails(
+            name=clean_name,
+            source=source,
+            exports=exports,
+        )
 
     def call(self, contract: str, function: str, kwargs: Dict[str, Any]) -> ContractingCallResult:
         if not contract:
@@ -376,6 +397,27 @@ class ContractingService:
                 snapshot["__runtime__"] = runtime_snapshot
 
         return json.dumps(snapshot, indent=2, sort_keys=True)
+
+    @staticmethod
+    def _parse_exports(source: str) -> List[ContractExportInfo]:
+        try:
+            tree = ast.parse(source)
+        except SyntaxError:
+            return []
+
+        exports: List[ContractExportInfo] = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef) and any(
+                _is_export_decorator(dec) for dec in node.decorator_list
+            ):
+                doc = ast.get_docstring(node) or ""
+                exports.append(
+                    ContractExportInfo(
+                        name=node.name,
+                        docstring=doc.strip(),
+                    )
+                )
+        return exports
 
 
 contracting_service = ContractingService()

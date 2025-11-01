@@ -10,6 +10,7 @@ import reflex as rx
 from contracting.stdlib.bridge.time import Datetime as ContractingDatetime
 
 from .services import (
+    ContractDetails,
     contracting_service,
     ENVIRONMENT_FIELDS,
     DEFAULT_ENVIRONMENT,
@@ -68,6 +69,9 @@ class PlaygroundState(rx.State):
     available_functions: List[str] = []
     function_name: str = ""
 
+    load_selected_contract: str = ""
+    loaded_contract_code: str = ""
+
     kwargs_input: str = "{}"
     run_result: str = ""
     state_dump: str = "{}"
@@ -78,6 +82,9 @@ class PlaygroundState(rx.State):
             key: self._stringify_env_value(env.get(key))
             for key in ENVIRONMENT_FIELD_KEYS
         }
+        if self.deployed_contracts:
+            if not self.load_selected_contract:
+                self.load_selected_contract = self.deployed_contracts[0]
         self.state_editor = self.state_dump
         return [
             type(self).refresh_contracts,
@@ -110,12 +117,17 @@ class PlaygroundState(rx.State):
             self.selected_contract = ""
             self.available_functions = []
             self.function_name = ""
+            self.load_selected_contract = ""
+            self.loaded_contract_code = ""
             return []
 
         if self.selected_contract not in contracts:
             self.selected_contract = contracts[0]
 
-        return [type(self).refresh_functions]
+        if not self.load_selected_contract or self.load_selected_contract not in contracts:
+            self.load_selected_contract = contracts[0]
+
+        return [type(self).refresh_functions, type(self).refresh_loaded_contract]
 
     def refresh_functions(self):
         if not self.selected_contract:
@@ -130,6 +142,24 @@ class PlaygroundState(rx.State):
             self.function_name = ""
         elif self.function_name not in functions:
             self.function_name = functions[0]
+
+    def change_loaded_contract(self, value: str):
+        self.load_selected_contract = value
+        return [type(self).refresh_loaded_contract]
+
+    def refresh_loaded_contract(self):
+        if not self.load_selected_contract:
+            self.loaded_contract_code = ""
+            return []
+
+        try:
+            details: ContractDetails = contracting_service.get_contract_details(self.load_selected_contract)
+        except Exception as exc:
+            self.loaded_contract_code = ""
+            return [rx.toast.error(f"Failed to load contract '{self.load_selected_contract}': {exc}")]
+
+        self.loaded_contract_code = details.source
+        return []
 
     def refresh_state(self):
         snapshot = contracting_service.dump_state(self.show_internal_state)
@@ -155,12 +185,14 @@ class PlaygroundState(rx.State):
         self.deploy_is_error = False
         self.deploy_message = f"Contract '{self.contract_name}' deployed successfully."
         self.selected_contract = self.contract_name
+        self.load_selected_contract = self.contract_name
 
         events = [
             rx.toast.success(self.deploy_message),
             type(self).refresh_contracts,
             type(self).refresh_state,
             type(self).refresh_environment,
+            type(self).refresh_loaded_contract,
         ]
         return events
 

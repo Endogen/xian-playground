@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import reflex as rx
 
+from .components import MonacoEditor
 from .services import ENVIRONMENT_FIELDS
 from .state import PlaygroundState
 
@@ -304,12 +305,22 @@ def editor_section() -> rx.Component:
             value=PlaygroundState.contract_name,
             on_change=PlaygroundState.update_contract_name,
         ),
-        styled_text_area(
+        MonacoEditor.create(
             value=PlaygroundState.code_editor,
+            language="python",
+            theme="vs-dark",
+            height=EDITOR_HEIGHT,
+            options={
+                "automaticLayout": True,
+                "tabSize": 4,
+                "insertSpaces": True,
+                "scrollBeyondLastLine": False,
+                "wordWrap": "on",
+                "minimap": {"enabled": False},
+                "lineNumbers": "on",
+                "renderWhitespace": "selection",
+            },
             on_change=PlaygroundState.update_code,
-            min_height=EDITOR_HEIGHT,
-            font_family="'Fira Code', 'Monaco', 'Courier New', monospace",
-            spell_check=False,
         ),
         rx.hstack(
             rx.spacer(),
@@ -318,7 +329,38 @@ def editor_section() -> rx.Component:
                 on_click=PlaygroundState.deploy_contract,
                 color_scheme="purple",
             ),
+            styled_button(
+                rx.cond(
+                    PlaygroundState.linting,
+                    "Linting...",
+                    "Run Linter",
+                ),
+                on_click=PlaygroundState.lint_contract,
+                color_scheme="cyan",
+                disabled=PlaygroundState.linting,
+            ),
             width="100%",
+            spacing="3",
+        ),
+        rx.cond(
+            PlaygroundState.lint_results != [],
+            rx.box(
+                rx.foreach(
+                    PlaygroundState.lint_results,
+                    lambda message: rx.text(
+                        message,
+                        color=COLORS["warning"],
+                        size="2",
+                    ),
+                ),
+                padding="12px",
+                border=f"1px solid {COLORS['border']}",
+                border_radius="8px",
+                background=COLORS["bg_tertiary"],
+                width="100%",
+                gap="8px",
+            ),
+            rx.fragment(),
         ),
     )
 

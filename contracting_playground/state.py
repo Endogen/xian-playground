@@ -9,7 +9,7 @@ import reflex as rx
 
 from contracting.stdlib.bridge.time import Datetime as ContractingDatetime
 
-from .services import contracting_service, ENVIRONMENT_FIELDS
+from .services import contracting_service, ENVIRONMENT_FIELDS, lint_contract as run_lint
 
 ENVIRONMENT_FIELD_KEYS = [field["key"] for field in ENVIRONMENT_FIELDS]
 
@@ -53,6 +53,8 @@ class PlaygroundState(rx.State):
 
     state_is_editing: bool = False
     state_editor: str = ""
+    lint_results: List[str] = []
+    linting: bool = False
 
     deployed_contracts: List[str] = []
     selected_contract: str = ""
@@ -77,7 +79,8 @@ class PlaygroundState(rx.State):
         ]
 
     def update_code(self, value: str):
-        self.code_editor = value
+        self.code_editor = value or ""
+        self.lint_results = []
 
     def update_contract_name(self, value: str):
         self.contract_name = value
@@ -243,6 +246,40 @@ class PlaygroundState(rx.State):
 
         self.state_is_editing = False
         return [rx.toast.success("State updated."), type(self).refresh_state]
+
+    def lint_contract(self):
+        if self.linting:
+            return []
+
+        self.linting = True
+        try:
+            raw_results = run_lint(self.code_editor)
+        except Exception as exc:
+            self.linting = False
+            self.lint_results = []
+            return [rx.toast.error(f"Lint failed: {exc}")]
+
+        self.linting = False
+        formatted = []
+        for result in raw_results:
+            position = result.get("position") or {}
+            line = position.get("line")
+            column = position.get("column")
+            location = ""
+            if line is not None:
+                location = f"Line {line + 1}"
+                if column is not None:
+                    location += f", Col {column + 1}"
+                location += ": "
+            formatted.append(f"{location}{result.get('message', '')}")
+
+        self.lint_results = formatted
+
+        if formatted:
+            return [
+                rx.toast.warning(f"Found {len(formatted)} issue(s)."),
+            ]
+        return [rx.toast.success("No lint issues found.")]
 
     def _parse_kwargs(self) -> dict:
         raw = self.kwargs_input.strip()

@@ -393,4 +393,8 @@ class PlaygroundState(rx.State):
             return [rx.toast.error(self.run_result)]
 
         self.run_result = call_result.as_string()
-        return [rx.toast.success("Execution succeeded."), type(self).refresh_state]
+        return [
+            rx.toast.success("Execution succeeded."),
+            type(self).refresh_state,
+            type(self).refresh_contracts,
+        ]

@@ -5,3 +5,8 @@ assets/external/
 *.db
 *.py[cod]
 .idea
+.contract_state
+docs/
+AGENTS.md
+CLAUDE.md
+no-gambiarra-policy.txt

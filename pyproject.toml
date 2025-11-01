@@ -9,7 +9,9 @@ readme = "README.md"
 requires-python = "~=3.11.0"
 dependencies = [
     "reflex (>=0.8.17,<0.9.0)",
-    "xian-contracting @ file:///Users/endogen/Projekte/xian-playground/xian-contracting"
+    "xian-contracting @ file:///Users/endogen/Projekte/xian-playground/xian-contracting",
+    "xian-linter (>=0.2.4,<0.3.0)",
+    "starlette (==0.49.1)"
 ]
 
 

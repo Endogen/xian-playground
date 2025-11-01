@@ -16,30 +16,42 @@ from contracting.storage.driver import Driver
 from contracting.stdlib.bridge.decimal import ContractingDecimal
 from contracting.stdlib.bridge.time import Datetime
 
+
+DEFAULT_SIGNER = "demo"
+DEFAULT_ENVIRONMENT: Dict[str, str] = {
+    "signer": DEFAULT_SIGNER,
+    "now": "2024-02-01T12:30:00",
+    "block_num": "100",
+    "block_hash": "0xabc...",
+}
+
 ENVIRONMENT_FIELDS: List[Dict[str, str]] = [
     {
         "key": "signer",
         "label": "signer",
-        "tooltip": "Override ctx.signer for executions. Typically this is the Xian wallet address submitting the transaction; leave blank to keep the current signer.",
-        "placeholder": "e.g. demo or wallet address",
+        "tooltip": (
+            "Override ctx.signer for executions. Typically this is the Xian wallet "
+            "address submitting the transaction; leave blank to keep the default signer."
+        ),
+        "placeholder": DEFAULT_SIGNER,
     },
     {
         "key": "now",
         "label": "now",
         "tooltip": "Override the execution timestamp returned by ctx.now. Use ISO 8601 input such as 2024-02-01T12:30:00.",
-        "placeholder": "2024-02-01T12:30:00",
+        "placeholder": DEFAULT_ENVIRONMENT["now"],
     },
     {
         "key": "block_num",
         "label": "block_num",
         "tooltip": "Synthetic block height applied when seeding deterministic randomness.",
-        "placeholder": "e.g. 100",
+        "placeholder": DEFAULT_ENVIRONMENT["block_num"],
     },
     {
         "key": "block_hash",
         "label": "block_hash",
         "tooltip": "Block hash string mixed into the randomness seed.",
-        "placeholder": "0xabc...",
+        "placeholder": DEFAULT_ENVIRONMENT["block_hash"],
     },
 ]
 
@@ -104,12 +116,12 @@ class ContractingService:
         self._driver = Driver(storage_home=storage_home)
         self._client = ContractingService._create_client(driver=self._driver)
         self._environment = self._client.environment
+        self._apply_default_environment()
         self._prune_environment()
-        self._environment["signer"] = self._client.signer
 
     @staticmethod
     def _create_client(driver: Driver) -> ContractingClient:
-        return ContractingClient(driver=driver, signer="demo")
+        return ContractingClient(driver=driver, signer=DEFAULT_SIGNER)
 
     def get_signer(self) -> str:
         with self._lock:
@@ -148,10 +160,7 @@ class ContractingService:
         if clean_key == 'signer':
             clean_value = str(value).strip()
             if clean_value == "":
-                with self._lock:
-                    self._client.signer = 'demo'
-                    self._environment['signer'] = 'demo'
-                return 'demo'
+                clean_value = DEFAULT_SIGNER
 
             with self._lock:
                 self._client.signer = clean_value
@@ -159,8 +168,11 @@ class ContractingService:
             return clean_value
 
         if value is None or str(value).strip() == "":
-            self.remove_environment_var(clean_key)
-            return None
+            default = DEFAULT_ENVIRONMENT.get(clean_key, "")
+            coerced_default = self._coerce_environment_value(clean_key, default)
+            with self._lock:
+                self._environment[clean_key] = coerced_default
+            return coerced_default
 
         coerced = self._coerce_environment_value(clean_key, value)
 
@@ -177,15 +189,29 @@ class ContractingService:
             return
         with self._lock:
             if clean_key == 'signer':
-                self._client.signer = 'demo'
-                self._environment['signer'] = 'demo'
+                self._client.signer = DEFAULT_SIGNER
+                self._environment['signer'] = DEFAULT_SIGNER
             else:
-                self._environment.pop(clean_key, None)
+                default = DEFAULT_ENVIRONMENT.get(clean_key)
+                if default is not None:
+                    self._environment[clean_key] = self._coerce_environment_value(clean_key, default)
+                else:
+                    self._environment.pop(clean_key, None)
 
     def _prune_environment(self) -> None:
         for key in list(self._environment.keys()):
             if key not in _ENVIRONMENT_LOOKUP:
                 self._environment.pop(key, None)
+
+    def _apply_default_environment(self) -> None:
+        for key, default in DEFAULT_ENVIRONMENT.items():
+            if key == "signer":
+                self._client.signer = default
+                self._environment['signer'] = default
+            else:
+                current = self._environment.get(key)
+                if current in (None, ""):
+                    self._environment[key] = self._coerce_environment_value(key, default)
 
     def _coerce_environment_value(self, key: str, raw: Any) -> Any:
         if key not in _ENVIRONMENT_LOOKUP:

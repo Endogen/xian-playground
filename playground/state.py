@@ -9,7 +9,12 @@ import reflex as rx
 
 from contracting.stdlib.bridge.time import Datetime as ContractingDatetime
 
-from .services import contracting_service, ENVIRONMENT_FIELDS, lint_contract as run_lint
+from .services import (
+    contracting_service,
+    ENVIRONMENT_FIELDS,
+    DEFAULT_ENVIRONMENT,
+    lint_contract as run_lint,
+)
 
 ENVIRONMENT_FIELD_KEYS = [field["key"] for field in ENVIRONMENT_FIELDS]
 
@@ -49,7 +54,9 @@ class PlaygroundState(rx.State):
     expert_message: str = ""
     expert_is_error: bool = False
     show_internal_state: bool = False
-    environment_editor: dict[str, str] = {key: "" for key in ENVIRONMENT_FIELD_KEYS}
+    environment_editor: dict[str, str] = {
+        key: DEFAULT_ENVIRONMENT.get(key, "") for key in ENVIRONMENT_FIELD_KEYS
+    }
 
     state_is_editing: bool = False
     state_editor: str = ""
@@ -209,7 +216,7 @@ class PlaygroundState(rx.State):
         if not key:
             return []
         contracting_service.remove_environment_var(key)
-        self.environment_editor[key] = ""
+        self.environment_editor[key] = DEFAULT_ENVIRONMENT.get(key, "")
         self.expert_is_error = False
         self.expert_message = f"Environment['{key}'] cleared."
         return [rx.toast.info(self.expert_message), type(self).refresh_environment]

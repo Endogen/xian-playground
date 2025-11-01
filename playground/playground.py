@@ -222,27 +222,6 @@ def expert_section() -> rx.Component:
                 ),
                 content=rx.accordion.content(
                     rx.vstack(
-                        rx.hstack(
-                            rx.checkbox(
-                                checked=PlaygroundState.show_internal_state,
-                                on_change=PlaygroundState.set_show_internal_state,
-                                color_scheme="cyan",
-                            ),
-                            rx.text(
-                                "Show protected state keys",
-                                color=COLORS["text_primary"],
-                                size="2",
-                                cursor="pointer",
-                                on_click=PlaygroundState.toggle_show_internal_state,
-                            ),
-                            gap="12px",
-                            align_items="center",
-                        ),
-                        rx.box(
-                            height="1px",
-                            width="100%",
-                            background=COLORS["border"],
-                        ),
                         rx.text(
                             "Configure deterministic runtime context. Leave a field blank to fall back to live defaults.",
                             color=COLORS["text_secondary"],
@@ -266,7 +245,8 @@ def expert_section() -> rx.Component:
                         gap="16px",
                         width="100%",
                     ),
-                    padding_y="16px",
+                    padding_top="0px",
+                    padding_bottom="16px",
                 ),
                 value="expert",
             ),
@@ -471,37 +451,57 @@ def execution_section() -> rx.Component:
 
 def state_section() -> rx.Component:
     return card(
-        rx.hstack(
-            section_header(
-                "Contract State",
-                "Live snapshot of every key stored in the driver. Refreshes after deployments and executions.",
-            ),
-            rx.spacer(),
-            rx.cond(
-                PlaygroundState.state_is_editing,
-                rx.hstack(
+        rx.vstack(
+            rx.hstack(
+                section_header(
+                    "Contract State",
+                    "Live snapshot of every key stored in the driver. Refreshes after deployments and executions.",
+                ),
+                rx.spacer(),
+                rx.cond(
+                    PlaygroundState.state_is_editing,
+                    rx.hstack(
+                        styled_button(
+                            "Save Changes",
+                            color_scheme="success",
+                            on_click=PlaygroundState.toggle_state_editor,
+                        ),
+                        styled_button(
+                            "Cancel",
+                            color_scheme="error",
+                            on_click=PlaygroundState.cancel_state_editing,
+                        ),
+                        spacing="3",
+                        align="center",
+                        justify="end",
+                    ),
                     styled_button(
-                        "Save Changes",
-                        color_scheme="success",
+                        "Edit State",
+                        color_scheme="cyan",
                         on_click=PlaygroundState.toggle_state_editor,
                     ),
-                    styled_button(
-                        "Cancel",
-                        color_scheme="error",
-                        on_click=PlaygroundState.cancel_state_editing,
-                    ),
-                    spacing="3",
-                    align="center",
-                    justify="end",
                 ),
-                styled_button(
-                    "Edit State",
-                    color_scheme="cyan",
-                    on_click=PlaygroundState.toggle_state_editor,
-                ),
+                align_items="center",
+                spacing="4",
+                width="100%",
             ),
-            align_items="center",
-            spacing="4",
+            rx.hstack(
+                rx.checkbox(
+                    checked=PlaygroundState.show_internal_state,
+                    on_change=PlaygroundState.set_show_internal_state,
+                    color_scheme="cyan",
+                ),
+                rx.text(
+                    "Show protected state keys",
+                    color=COLORS["text_primary"],
+                    size="2",
+                    cursor="pointer",
+                    on_click=PlaygroundState.toggle_show_internal_state,
+                ),
+                gap="12px",
+                align_items="center",
+            ),
+            gap="12px",
             width="100%",
         ),
         rx.cond(

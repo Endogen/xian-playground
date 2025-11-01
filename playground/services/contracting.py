@@ -20,8 +20,8 @@ ENVIRONMENT_FIELDS: List[Dict[str, str]] = [
     {
         "key": "signer",
         "label": "signer",
-        "tooltip": "Override ctx.signer for executions. Blank reverts to the current signer.",
-        "placeholder": "e.g. alice",
+        "tooltip": "Override ctx.signer for executions. Typically this is the Xian wallet address submitting the transaction; leave blank to keep the current signer.",
+        "placeholder": "e.g. demo or wallet address",
     },
     {
         "key": "now",
@@ -102,9 +102,14 @@ class ContractingService:
         storage_home = storage_home or _default_storage_home()
         self._lock = threading.RLock()
         self._driver = Driver(storage_home=storage_home)
-        self._client = ContractingClient(driver=self._driver)
+        self._client = ContractingService._create_client(driver=self._driver)
         self._environment = self._client.environment
         self._prune_environment()
+        self._environment["signer"] = self._client.signer
+
+    @staticmethod
+    def _create_client(driver: Driver) -> ContractingClient:
+        return ContractingClient(driver=driver, signer="demo")
 
     def get_signer(self) -> str:
         with self._lock:
@@ -144,9 +149,10 @@ class ContractingService:
             clean_value = str(value).strip()
             if clean_value == "":
                 with self._lock:
-                    self._client.signer = 'sys'
-                    self._environment.pop('signer', None)
-                return 'sys'
+                    self._client.signer = 'demo'
+                    self._environment['signer'] = 'demo'
+                return 'demo'
+
             with self._lock:
                 self._client.signer = clean_value
                 self._environment['signer'] = clean_value
@@ -171,8 +177,10 @@ class ContractingService:
             return
         with self._lock:
             if clean_key == 'signer':
-                self._client.signer = 'sys'
-            self._environment.pop(clean_key, None)
+                self._client.signer = 'demo'
+                self._environment['signer'] = 'demo'
+            else:
+                self._environment.pop(clean_key, None)
 
     def _prune_environment(self) -> None:
         for key in list(self._environment.keys()):

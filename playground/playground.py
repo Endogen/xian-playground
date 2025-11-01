@@ -218,7 +218,7 @@ def expert_section() -> rx.Component:
                 header=rx.accordion.trigger(
                     rx.hstack(
                         rx.heading(
-                            "Expert Settings",
+                            "Execution Environment Variables",
                             size="4",
                             color=COLORS["text_primary"],
                             font_weight="600",
@@ -230,12 +230,6 @@ def expert_section() -> rx.Component:
                 ),
                 content=rx.accordion.content(
                     rx.vstack(
-                        rx.text(
-                            "Advanced controls for signer identity and state visibility.",
-                            color=COLORS["text_secondary"],
-                            size="2",
-                            line_height="1.6",
-                        ),
                         rx.hstack(
                             rx.checkbox(
                                 checked=PlaygroundState.show_internal_state,
@@ -246,6 +240,8 @@ def expert_section() -> rx.Component:
                                 "Show protected state keys",
                                 color=COLORS["text_primary"],
                                 size="2",
+                                cursor="pointer",
+                                on_click=PlaygroundState.toggle_show_internal_state,
                             ),
                             gap="12px",
                             align_items="center",
@@ -254,12 +250,6 @@ def expert_section() -> rx.Component:
                             height="1px",
                             width="100%",
                             background=COLORS["border"],
-                        ),
-                        rx.heading(
-                            "Execution Environment",
-                            size="3",
-                            color=COLORS["text_primary"],
-                            font_weight="600",
                         ),
                         rx.text(
                             "Configure deterministic runtime context. Leave a field blank to fall back to live defaults.",

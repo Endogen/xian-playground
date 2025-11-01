@@ -42,7 +42,7 @@ class PlaygroundState(rx.State):
     """Global Reflex state powering the playground UI."""
 
     code_editor: str = DEFAULT_CONTRACT
-    contract_name: str = "demo_token"
+    contract_name: str = "con_demo_token"
     deploy_message: str = ""
     deploy_is_error: bool = False
 
@@ -161,6 +161,10 @@ class PlaygroundState(rx.State):
         if isinstance(value, dict):
             value = value.get("value", False)
         self.show_internal_state = bool(value)
+        return [type(self).refresh_state]
+
+    def toggle_show_internal_state(self):
+        self.show_internal_state = not self.show_internal_state
         return [type(self).refresh_state]
 
     def edit_environment_value(self, key: str, value):

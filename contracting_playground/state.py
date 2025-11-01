@@ -260,18 +260,22 @@ class PlaygroundState(rx.State):
             return [rx.toast.error(f"Lint failed: {exc}")]
 
         self.linting = False
-        formatted = []
+        formatted: list[str] = []
         for result in raw_results:
-            position = result.get("position") or {}
-            line = position.get("line")
-            column = position.get("column")
-            location = ""
-            if line is not None:
-                location = f"Line {line + 1}"
-                if column is not None:
-                    location += f", Col {column + 1}"
-                location += ": "
-            formatted.append(f"{location}{result.get('message', '')}")
+            if isinstance(result, dict):
+                position = result.get("position") or {}
+                line = position.get("line")
+                column = position.get("column")
+                message = result.get("message", "")
+                location = ""
+                if line is not None:
+                    location = f"Line {line + 1}"
+                    if column is not None:
+                        location += f", Col {column + 1}"
+                    location += ": "
+                formatted.append(f"{location}{message}")
+            else:
+                formatted.append(str(result))
 
         self.lint_results = formatted
 

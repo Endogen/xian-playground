@@ -2,11 +2,16 @@ from __future__ import annotations
 
 import ast
 import json
+from datetime import datetime as PyDatetime
 from typing import List
 
 import reflex as rx
 
-from .services import contracting_service
+from contracting.stdlib.bridge.time import Datetime as ContractingDatetime
+
+from .services import contracting_service, ENVIRONMENT_FIELDS
+
+ENVIRONMENT_FIELD_KEYS = [field["key"] for field in ENVIRONMENT_FIELDS]
 
 
 DEFAULT_CONTRACT = """\
@@ -41,10 +46,10 @@ class PlaygroundState(rx.State):
     deploy_message: str = ""
     deploy_is_error: bool = False
 
-    signer_value: str = contracting_service.get_signer()
     expert_message: str = ""
     expert_is_error: bool = False
     show_internal_state: bool = False
+    environment_editor: dict[str, str] = {key: "" for key in ENVIRONMENT_FIELD_KEYS}
 
     deployed_contracts: List[str] = []
     selected_contract: str = ""
@@ -56,10 +61,15 @@ class PlaygroundState(rx.State):
     state_dump: str = "{}"
 
     def on_load(self):
-        self.signer_value = contracting_service.get_signer()
+        env = contracting_service.get_environment()
+        self.environment_editor = {
+            key: self._stringify_env_value(env.get(key))
+            for key in ENVIRONMENT_FIELD_KEYS
+        }
         return [
             type(self).refresh_contracts,
             type(self).refresh_state,
+            type(self).refresh_environment,
         ]
 
     def update_code(self, value: str):
@@ -110,6 +120,13 @@ class PlaygroundState(rx.State):
     def refresh_state(self):
         self.state_dump = contracting_service.dump_state(self.show_internal_state)
 
+    def refresh_environment(self):
+        env = contracting_service.get_environment()
+        self.environment_editor = {
+            key: self._stringify_env_value(env.get(key))
+            for key in ENVIRONMENT_FIELD_KEYS
+        }
+
     def deploy_contract(self):
         try:
             contracting_service.deploy(self.contract_name, self.code_editor)
@@ -125,29 +142,69 @@ class PlaygroundState(rx.State):
         return [
             type(self).refresh_contracts,
             type(self).refresh_state,
+            type(self).refresh_environment,
         ]
-
-    def set_signer_value(self, value: str):
-        self.signer_value = value
-
-    def apply_signer(self):
-        try:
-            updated = contracting_service.set_signer(self.signer_value)
-        except Exception as exc:
-            self.expert_is_error = True
-            self.expert_message = f"Failed to set signer: {exc}"
-            return []
-
-        self.signer_value = updated
-        self.expert_is_error = False
-        self.expert_message = f"Signer set to '{updated}'."
-        return []
 
     def set_show_internal_state(self, value):
         if isinstance(value, dict):
             value = value.get("value", False)
         self.show_internal_state = bool(value)
         return [type(self).refresh_state]
+
+    def edit_environment_value(self, key: str, value):
+        if isinstance(key, dict):
+            key = key.get("value", "")
+        if isinstance(value, dict):
+            value = value.get("value", "")
+        if not key:
+            return
+        if key in self.environment_editor:
+            self.environment_editor[key] = value
+
+    def apply_environment_value(self, key):
+        if isinstance(key, dict):
+            key = key.get("value", "")
+        if not key:
+            self.expert_is_error = True
+            self.expert_message = "No environment key selected."
+            return []
+        current = self.environment_editor.get(key, "")
+        try:
+            if current.strip() == "":
+                contracting_service.remove_environment_var(key)
+                message = f"Environment['{key}'] cleared."
+            else:
+                contracting_service.set_environment_var(key, current)
+                message = f"Environment['{key}'] updated."
+        except Exception as exc:
+            self.expert_is_error = True
+            self.expert_message = f"Failed to set environment['{key}']: {exc}"
+            return []
+
+        self.expert_is_error = False
+        self.expert_message = message
+        return [type(self).refresh_environment]
+
+    def reset_environment_value(self, key):
+        if isinstance(key, dict):
+            key = key.get("value", "")
+        if not key:
+            return []
+        contracting_service.remove_environment_var(key)
+        self.environment_editor[key] = ""
+        self.expert_is_error = False
+        self.expert_message = f"Environment['{key}'] cleared."
+        return [type(self).refresh_environment]
+
+    @staticmethod
+    def _stringify_env_value(value: object) -> str:
+        if isinstance(value, ContractingDatetime):
+            return value._datetime.isoformat()
+        if isinstance(value, PyDatetime):
+            return value.isoformat()
+        if value is None:
+            return ""
+        return str(value)
 
     def _parse_kwargs(self) -> dict:
         raw = self.kwargs_input.strip()

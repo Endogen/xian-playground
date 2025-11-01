@@ -5,6 +5,7 @@ import decimal
 import json
 import threading
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -14,6 +15,41 @@ from contracting.storage import hdf5
 from contracting.storage.driver import Driver
 from contracting.stdlib.bridge.decimal import ContractingDecimal
 from contracting.stdlib.bridge.time import Datetime
+
+ENVIRONMENT_FIELDS: List[Dict[str, str]] = [
+    {
+        "key": "signer",
+        "label": "signer",
+        "tooltip": "Override ctx.signer for executions. Blank reverts to the current signer.",
+        "placeholder": "e.g. alice",
+    },
+    {
+        "key": "caller",
+        "label": "caller",
+        "tooltip": "Override ctx.caller. Useful for simulating nested calls.",
+        "placeholder": "e.g. con_contract",
+    },
+    {
+        "key": "now",
+        "label": "now",
+        "tooltip": "Override the execution timestamp returned by ctx.now. Use ISO 8601 input such as 2024-02-01T12:30:00.",
+        "placeholder": "2024-02-01T12:30:00",
+    },
+    {
+        "key": "block_num",
+        "label": "block_num",
+        "tooltip": "Synthetic block height applied when seeding deterministic randomness.",
+        "placeholder": "e.g. 100",
+    },
+    {
+        "key": "block_hash",
+        "label": "block_hash",
+        "tooltip": "Block hash string mixed into the randomness seed.",
+        "placeholder": "0xabc...",
+    },
+]
+
+_ENVIRONMENT_LOOKUP = {field["key"]: field for field in ENVIRONMENT_FIELDS}
 
 
 def _default_storage_home() -> Path:
@@ -73,6 +109,8 @@ class ContractingService:
         self._lock = threading.RLock()
         self._driver = Driver(storage_home=storage_home)
         self._client = ContractingClient(driver=self._driver)
+        self._environment = self._client.environment
+        self._prune_environment()
 
     def get_signer(self) -> str:
         with self._lock:
@@ -86,7 +124,110 @@ class ContractingService:
         with self._lock:
             self._client.signer = clean
 
+        # Keep the environment mirror in sync so UI displays the current signer.
+        self._environment['signer'] = clean
+
         return clean
+
+    def get_environment(self) -> Dict[str, Any]:
+        with self._lock:
+            self._prune_environment()
+            env = {
+                key: self._environment.get(key)
+                for key in _ENVIRONMENT_LOOKUP
+            }
+            env['signer'] = self._client.signer
+            return env
+
+    def set_environment_var(self, key: str, value: str) -> Any:
+        clean_key = (key or "").strip()
+        if not clean_key:
+            raise ValueError("Environment key cannot be empty.")
+        if clean_key not in _ENVIRONMENT_LOOKUP:
+            raise ValueError(f"Environment key '{clean_key}' is not configurable.")
+
+        if clean_key == 'signer':
+            clean_value = str(value).strip()
+            if clean_value == "":
+                with self._lock:
+                    self._client.signer = 'sys'
+                    self._environment.pop('signer', None)
+                return 'sys'
+            with self._lock:
+                self._client.signer = clean_value
+                self._environment['signer'] = clean_value
+            return clean_value
+
+        if value is None or str(value).strip() == "":
+            self.remove_environment_var(clean_key)
+            return None
+
+        coerced = self._coerce_environment_value(clean_key, value)
+
+        with self._lock:
+            self._environment[clean_key] = coerced
+
+        return coerced
+
+    def remove_environment_var(self, key: str) -> None:
+        clean_key = (key or "").strip()
+        if not clean_key:
+            return
+        if clean_key not in _ENVIRONMENT_LOOKUP:
+            return
+        with self._lock:
+            if clean_key == 'signer':
+                self._client.signer = 'sys'
+            self._environment.pop(clean_key, None)
+
+    def _prune_environment(self) -> None:
+        for key in list(self._environment.keys()):
+            if key not in _ENVIRONMENT_LOOKUP:
+                self._environment.pop(key, None)
+
+    def _coerce_environment_value(self, key: str, raw: Any) -> Any:
+        if key not in _ENVIRONMENT_LOOKUP:
+            raise ValueError(f"Environment key '{key}' is not configurable.")
+
+        if isinstance(raw, Datetime):
+            return raw
+
+        if key == 'signer':
+            return str(raw).strip()
+
+        if key == 'caller':
+            return str(raw).strip()
+
+        if key == "now":
+            if raw is None or str(raw).strip() == "":
+                raise ValueError("Environment['now'] requires an ISO datetime string.")
+
+            text = str(raw).strip()
+            try:
+                parsed = datetime.fromisoformat(text)
+            except ValueError as exc:
+                raise ValueError("Invalid ISO format for 'now'.") from exc
+            return Datetime._from_datetime(parsed)
+
+        if key == "block_num":
+            text = str(raw).strip() or "0"
+            try:
+                return int(text, 0)
+            except ValueError as exc:
+                raise ValueError("block_num must be an integer.") from exc
+
+        if key == 'block_hash':
+            return str(raw).strip()
+
+        text = str(raw).strip()
+        if text == "":
+            return ""
+
+        try:
+            parsed = json.loads(text)
+            return parsed
+        except json.JSONDecodeError:
+            return text
 
     def deploy(self, name: str, code: str) -> None:
         """Deploy a contract by name."""

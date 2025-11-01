@@ -2,7 +2,53 @@ from __future__ import annotations
 
 import reflex as rx
 
+from .services import ENVIRONMENT_FIELDS
 from .state import PlaygroundState
+
+
+def environment_field_row(info: dict) -> rx.Component:
+    key = info.get("key", "")
+    label = info.get("label", key)
+    tooltip_text = info.get("tooltip", "")
+    placeholder = info.get("placeholder", "")
+
+    tooltip = rx.tooltip(
+        rx.text(label, font_weight="bold"),
+        content=tooltip_text,
+        delay_duration=200,
+    )
+
+    return rx.box(
+        rx.hstack(
+            tooltip,
+            rx.spacer(),
+            rx.button(
+                "Reset",
+                on_click=PlaygroundState.reset_environment_value(key),
+                variant="soft",
+                color_scheme="gray",
+            ),
+        ),
+        rx.input(
+            value=PlaygroundState.environment_editor.get(key, ""),
+            on_change=lambda value, key=key: PlaygroundState.edit_environment_value(key, value),
+            placeholder=placeholder,
+        ),
+        rx.hstack(
+            rx.spacer(),
+            rx.button(
+                "Update",
+                on_click=PlaygroundState.apply_environment_value(key),
+                color_scheme="blue",
+            ),
+        ),
+        display="flex",
+        flex_direction="column",
+        gap="2",
+        padding="3",
+        border="1px solid var(--gray-5)",
+        border_radius="6px",
+    )
 
 
 EDITOR_HEIGHT = "320px"
@@ -27,26 +73,23 @@ def expert_section() -> rx.Component:
                         color="gray9",
                     ),
                     rx.hstack(
-                        rx.input(
-                            placeholder="Signer",
-                            value=PlaygroundState.signer_value,
-                            on_change=PlaygroundState.set_signer_value,
-                        ),
-                        rx.button(
-                            "Apply signer",
-                            on_click=PlaygroundState.apply_signer,
-                            color_scheme="violet",
-                        ),
-                        gap="3",
-                        width="100%",
-                    ),
-                    rx.hstack(
                         rx.checkbox(
                             checked=PlaygroundState.show_internal_state,
                             on_change=PlaygroundState.set_show_internal_state,
                         ),
                         rx.text("Show state keys starting with '__'"),
                         gap="2",
+                    ),
+                    rx.divider(),
+                    rx.heading("Execution Environment", size="3"),
+                    rx.text(
+                        "Configure deterministic runtime context. Leave a field blank to fall back to live defaults.",
+                        color="gray9",
+                    ),
+                    rx.vstack(
+                        *[environment_field_row(field) for field in ENVIRONMENT_FIELDS],
+                        gap="3",
+                        width="100%",
                     ),
                     rx.cond(
                         PlaygroundState.expert_message != "",

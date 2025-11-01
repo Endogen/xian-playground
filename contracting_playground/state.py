@@ -133,17 +133,19 @@ class PlaygroundState(rx.State):
         except Exception as exc:
             self.deploy_is_error = True
             self.deploy_message = f"Deploy failed: {exc}"
-            return
+            return [rx.toast.error(self.deploy_message)]
 
         self.deploy_is_error = False
         self.deploy_message = f"Contract '{self.contract_name}' deployed successfully."
         self.selected_contract = self.contract_name
 
-        return [
+        events = [
+            rx.toast.success(self.deploy_message),
             type(self).refresh_contracts,
             type(self).refresh_state,
             type(self).refresh_environment,
         ]
+        return events
 
     def set_show_internal_state(self, value):
         if isinstance(value, dict):
@@ -173,17 +175,19 @@ class PlaygroundState(rx.State):
             if current.strip() == "":
                 contracting_service.remove_environment_var(key)
                 message = f"Environment['{key}'] cleared."
+                toast = rx.toast.info(message)
             else:
                 contracting_service.set_environment_var(key, current)
                 message = f"Environment['{key}'] updated."
+                toast = rx.toast.success(message)
         except Exception as exc:
             self.expert_is_error = True
             self.expert_message = f"Failed to set environment['{key}']: {exc}"
-            return []
+            return [rx.toast.error(self.expert_message)]
 
         self.expert_is_error = False
         self.expert_message = message
-        return [type(self).refresh_environment]
+        return [toast, type(self).refresh_environment]
 
     def reset_environment_value(self, key):
         if isinstance(key, dict):
@@ -194,7 +198,7 @@ class PlaygroundState(rx.State):
         self.environment_editor[key] = ""
         self.expert_is_error = False
         self.expert_message = f"Environment['{key}'] cleared."
-        return [type(self).refresh_environment]
+        return [rx.toast.info(self.expert_message), type(self).refresh_environment]
 
     @staticmethod
     def _stringify_env_value(value: object) -> str:
@@ -233,13 +237,13 @@ class PlaygroundState(rx.State):
             kwargs = self._parse_kwargs()
         except ValueError as exc:
             self.run_result = str(exc)
-            return
+            return [rx.toast.error(self.run_result)]
 
         try:
             call_result = contracting_service.call(self.selected_contract, self.function_name, kwargs)
         except Exception as exc:
             self.run_result = f"Execution failed: {exc}"
-            return
+            return [rx.toast.error(self.run_result)]
 
         self.run_result = call_result.as_string()
-        return [type(self).refresh_state]
+        return [rx.toast.success("Execution succeeded."), type(self).refresh_state]

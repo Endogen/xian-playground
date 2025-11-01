@@ -96,18 +96,6 @@ def expert_section() -> rx.Component:
                         gap="3",
                         width="100%",
                     ),
-                    rx.cond(
-                        PlaygroundState.expert_message != "",
-                        rx.text(
-                            PlaygroundState.expert_message,
-                            color=rx.cond(
-                                PlaygroundState.expert_is_error,
-                                "red",
-                                "green",
-                            ),
-                        ),
-                        rx.box(),
-                    ),
                     gap="4",
                     width="100%",
                 ),
@@ -147,14 +135,6 @@ def editor_section() -> rx.Component:
                 on_click=PlaygroundState.deploy_contract,
                 color_scheme="orange",
             ),
-        ),
-        rx.cond(
-            PlaygroundState.deploy_message != "",
-            rx.text(
-                PlaygroundState.deploy_message,
-                color=rx.cond(PlaygroundState.deploy_is_error, "red", "green"),
-            ),
-            rx.box(),
         ),
         display="flex",
         flex_direction="column",

@@ -196,14 +196,43 @@ def state_section() -> rx.Component:
         rx.text(
             "Live snapshot of every key stored in the driver. Refreshes after deployments and executions."
         ),
-        rx.code_block(
-            PlaygroundState.state_dump,
-            language="json",
-            wrap_lines=True,
-            width="100%",
-            min_height=STATE_HEIGHT,
-            max_height="520px",
-            overflow_y="auto",
+        rx.hstack(
+            rx.spacer(),
+            rx.button(
+                rx.cond(
+                    PlaygroundState.state_is_editing,
+                    "Save",
+                    "Edit",
+                ),
+                on_click=PlaygroundState.toggle_state_editor,
+                color_scheme=rx.cond(
+                    PlaygroundState.state_is_editing,
+                    "green",
+                    "blue",
+                ),
+            ),
+        ),
+        rx.cond(
+            PlaygroundState.state_is_editing,
+            rx.text_area(
+                value=PlaygroundState.state_editor,
+                on_change=PlaygroundState.update_state_editor,
+                font_family="monospace",
+                min_height=STATE_HEIGHT,
+                max_height="520px",
+                width="100%",
+                overflow_y="auto",
+                spell_check=False,
+            ),
+            rx.code_block(
+                PlaygroundState.state_dump,
+                language="json",
+                wrap_lines=True,
+                width="100%",
+                min_height=STATE_HEIGHT,
+                max_height="520px",
+                overflow_y="auto",
+            ),
         ),
         display="flex",
         flex_direction="column",

@@ -234,6 +234,30 @@ class ContractingService:
             self._client.submit(code, name=clean_name)
             self._driver.commit()
 
+    def apply_state_snapshot(self, snapshot: Dict[str, Any]) -> None:
+        if not isinstance(snapshot, dict):
+            raise ValueError("State snapshot must be a JSON object.")
+
+        with self._lock:
+            for contract, entries in snapshot.items():
+                if contract == "__runtime__":
+                    continue
+                if not isinstance(entries, dict):
+                    raise ValueError(f"State for '{contract}' must be an object mapping keys to values.")
+
+                for key, value in entries.items():
+                    if not isinstance(key, str):
+                        raise ValueError(f"State keys for '{contract}' must be strings.")
+
+                    full_key = contract if key == "" else f"{contract}.{key}"
+
+                    if value is None:
+                        self._driver.delete(full_key)
+                    else:
+                        self._driver.set(full_key, value)
+
+            self._driver.commit()
+
     def list_contracts(self) -> List[str]:
         with self._lock:
             contract_files = self._driver.get_contract_files()

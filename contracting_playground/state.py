@@ -51,6 +51,9 @@ class PlaygroundState(rx.State):
     show_internal_state: bool = False
     environment_editor: dict[str, str] = {key: "" for key in ENVIRONMENT_FIELD_KEYS}
 
+    state_is_editing: bool = False
+    state_editor: str = ""
+
     deployed_contracts: List[str] = []
     selected_contract: str = ""
     available_functions: List[str] = []
@@ -66,6 +69,7 @@ class PlaygroundState(rx.State):
             key: self._stringify_env_value(env.get(key))
             for key in ENVIRONMENT_FIELD_KEYS
         }
+        self.state_editor = self.state_dump
         return [
             type(self).refresh_contracts,
             type(self).refresh_state,
@@ -118,7 +122,10 @@ class PlaygroundState(rx.State):
             self.function_name = functions[0]
 
     def refresh_state(self):
-        self.state_dump = contracting_service.dump_state(self.show_internal_state)
+        snapshot = contracting_service.dump_state(self.show_internal_state)
+        self.state_dump = snapshot
+        if not self.state_is_editing:
+            self.state_editor = snapshot
 
     def refresh_environment(self):
         env = contracting_service.get_environment()
@@ -209,6 +216,28 @@ class PlaygroundState(rx.State):
         if value is None:
             return ""
         return str(value)
+
+    def update_state_editor(self, value: str):
+        self.state_editor = value
+
+    def toggle_state_editor(self):
+        if not self.state_is_editing:
+            self.state_editor = self.state_dump
+            self.state_is_editing = True
+            return []
+
+        try:
+            data = json.loads(self.state_editor)
+        except json.JSONDecodeError as exc:
+            return [rx.toast.error(f"Invalid JSON: {exc}")]
+
+        try:
+            contracting_service.apply_state_snapshot(data)
+        except Exception as exc:
+            return [rx.toast.error(f"Failed to update state: {exc}")]
+
+        self.state_is_editing = False
+        return [rx.toast.success("State updated."), type(self).refresh_state]
 
     def _parse_kwargs(self) -> dict:
         raw = self.kwargs_input.strip()

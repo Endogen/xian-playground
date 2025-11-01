@@ -12,6 +12,7 @@ from contracting.stdlib.bridge.time import Datetime as ContractingDatetime
 from .services import (
     ContractDetails,
     contracting_service,
+    ContractExportInfo,
     ENVIRONMENT_FIELDS,
     DEFAULT_ENVIRONMENT,
     lint_contract as run_lint,
@@ -71,6 +72,7 @@ class PlaygroundState(rx.State):
 
     load_selected_contract: str = ""
     loaded_contract_code: str = ""
+    function_required_params: dict[str, List[str]] = {}
 
     kwargs_input: str = "{}"
     run_result: str = ""
@@ -108,6 +110,7 @@ class PlaygroundState(rx.State):
 
     def change_selected_function(self, value: str):
         self.function_name = value
+        self.prefill_kwargs_for_current_function()
 
     def refresh_contracts(self):
         contracts = contracting_service.list_contracts()
@@ -119,6 +122,7 @@ class PlaygroundState(rx.State):
             self.function_name = ""
             self.load_selected_contract = ""
             self.loaded_contract_code = ""
+            self.function_required_params = {}
             return []
 
         if self.selected_contract not in contracts:
@@ -133,15 +137,29 @@ class PlaygroundState(rx.State):
         if not self.selected_contract:
             self.available_functions = []
             self.function_name = ""
+            self.function_required_params = {}
+            self.kwargs_input = "{}"
             return
 
-        functions = contracting_service.list_functions(self.selected_contract)
+        exports: List[ContractExportInfo] = contracting_service.get_export_metadata(self.selected_contract)
+        required_map = {
+            export.name: [
+                param.name for param in (export.parameters or []) if param.required
+            ]
+            for export in exports
+        }
+        self.function_required_params = required_map
+
+        functions = sorted(required_map.keys())
         self.available_functions = functions
 
         if not functions:
             self.function_name = ""
+            self.kwargs_input = "{}"
         elif self.function_name not in functions:
             self.function_name = functions[0]
+
+        self.prefill_kwargs_for_current_function()
 
     def change_loaded_contract(self, value: str):
         self.load_selected_contract = value
@@ -160,6 +178,17 @@ class PlaygroundState(rx.State):
 
         self.loaded_contract_code = details.source
         return []
+
+    def prefill_kwargs_for_current_function(self):
+        if not self.function_name:
+            self.kwargs_input = "{}"
+            return
+        required = self.function_required_params.get(self.function_name, [])
+        if not required:
+            self.kwargs_input = "{}"
+            return
+        payload = {name: "" for name in required}
+        self.kwargs_input = json.dumps(payload, indent=2)
 
     def refresh_state(self):
         snapshot = contracting_service.dump_state(self.show_internal_state)

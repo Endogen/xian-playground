@@ -108,9 +108,16 @@ class ContractingCallResult:
 
 
 @dataclass
+class FunctionParameter:
+    name: str
+    required: bool = True
+
+
+@dataclass
 class ContractExportInfo:
     name: str
     docstring: str = ""
+    parameters: List[FunctionParameter] | None = None
 
 
 @dataclass
@@ -323,6 +330,18 @@ class ContractingService:
         exports = self._parse_exports(source)
         return sorted(export.name for export in exports)
 
+    def get_export_metadata(self, contract: str) -> List[ContractExportInfo]:
+        if not contract:
+            return []
+
+        with self._lock:
+            source = self._driver.get_contract(contract)
+
+        if not source:
+            return []
+
+        return self._parse_exports(source)
+
     def get_contract_details(self, contract: str) -> ContractDetails:
         clean_name = (contract or "").strip()
         if not clean_name:
@@ -411,10 +430,40 @@ class ContractingService:
                 _is_export_decorator(dec) for dec in node.decorator_list
             ):
                 doc = ast.get_docstring(node) or ""
+                parameters: List[FunctionParameter] = []
+
+                # Positional-only parameters
+                posonly = list(getattr(node.args, "posonlyargs", []))
+                for arg in posonly:
+                    parameters.append(FunctionParameter(name=arg.arg, required=True))
+
+                # Regular positional parameters
+                regular_args = list(node.args.args)
+                defaults = list(node.args.defaults)
+                num_defaults = len(defaults)
+                num_required = len(regular_args) - num_defaults
+                for idx, arg in enumerate(regular_args):
+                    required = idx < num_required
+                    parameters.append(FunctionParameter(name=arg.arg, required=required))
+
+                # Keyword-only parameters
+                kwonly_args = list(node.args.kwonlyargs)
+                kw_defaults = list(node.args.kw_defaults)
+                for arg, default in zip(kwonly_args, kw_defaults):
+                    required = default is None
+                    parameters.append(FunctionParameter(name=arg.arg, required=required))
+
+                # Varargs / kwargs - include but mark optional
+                if node.args.vararg is not None:
+                    parameters.append(FunctionParameter(name=node.args.vararg.arg, required=False))
+                if node.args.kwarg is not None:
+                    parameters.append(FunctionParameter(name=node.args.kwarg.arg, required=False))
+
                 exports.append(
                     ContractExportInfo(
                         name=node.name,
                         docstring=doc.strip(),
+                        parameters=parameters,
                     )
                 )
         return exports

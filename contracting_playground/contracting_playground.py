@@ -394,34 +394,32 @@ def state_section() -> rx.Component:
                 "Live snapshot of every key stored in the driver. Refreshes after deployments and executions.",
             ),
             rx.spacer(),
-            rx.button(
-                rx.cond(
-                    PlaygroundState.state_is_editing,
-                    "Save Changes",
+            rx.cond(
+                PlaygroundState.state_is_editing,
+                rx.hstack(
+                    styled_button(
+                        "Save Changes",
+                        color_scheme="success",
+                        on_click=PlaygroundState.toggle_state_editor,
+                    ),
+                    styled_button(
+                        "Cancel",
+                        color_scheme="error",
+                        on_click=PlaygroundState.cancel_state_editing,
+                    ),
+                    spacing="3",
+                    align="center",
+                    justify="end",
+                ),
+                styled_button(
                     "Edit State",
+                    color_scheme="cyan",
+                    on_click=PlaygroundState.toggle_state_editor,
                 ),
-                on_click=PlaygroundState.toggle_state_editor,
-                background=rx.cond(
-                    PlaygroundState.state_is_editing,
-                    COLORS["success"],
-                    COLORS["accent_blue"],
-                ),
-                color="white",
-                border="none",
-                border_radius="8px",
-                padding_x="20px",
-                padding_y="10px",
-                font_weight="500",
-                font_size="14px",
-                cursor="pointer",
-                transition="all 0.2s",
-                _hover={
-                    "opacity": "0.9",
-                },
             ),
+            align_items="center",
+            spacing="4",
             width="100%",
-            align_items="start",
-            gap="16px",
         ),
         rx.cond(
             PlaygroundState.state_is_editing,

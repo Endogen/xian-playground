@@ -220,6 +220,11 @@ class PlaygroundState(rx.State):
     def update_state_editor(self, value: str):
         self.state_editor = value
 
+    def cancel_state_editing(self):
+        self.state_is_editing = False
+        self.state_editor = self.state_dump
+        return []
+
     def toggle_state_editor(self):
         if not self.state_is_editing:
             self.state_editor = self.state_dump

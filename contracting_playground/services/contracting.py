@@ -24,12 +24,6 @@ ENVIRONMENT_FIELDS: List[Dict[str, str]] = [
         "placeholder": "e.g. alice",
     },
     {
-        "key": "caller",
-        "label": "caller",
-        "tooltip": "Override ctx.caller. Useful for simulating nested calls.",
-        "placeholder": "e.g. con_contract",
-    },
-    {
         "key": "now",
         "label": "now",
         "tooltip": "Override the execution timestamp returned by ctx.now. Use ISO 8601 input such as 2024-02-01T12:30:00.",
@@ -193,9 +187,6 @@ class ContractingService:
             return raw
 
         if key == 'signer':
-            return str(raw).strip()
-
-        if key == 'caller':
             return str(raw).strip()
 
         if key == "now":

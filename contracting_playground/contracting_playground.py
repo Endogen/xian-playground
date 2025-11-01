@@ -86,6 +86,11 @@ def expert_section() -> rx.Component:
                         "Configure deterministic runtime context. Leave a field blank to fall back to live defaults.",
                         color="gray9",
                     ),
+                    rx.text(
+                        "Note: ctx.caller is managed by the runtime during contract-to-contract calls and cannot be overridden here.",
+                        color="gray9",
+                        font_style="italic",
+                    ),
                     rx.vstack(
                         *[environment_field_row(field) for field in ENVIRONMENT_FIELDS],
                         gap="3",

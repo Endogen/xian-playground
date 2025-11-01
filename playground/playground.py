@@ -167,34 +167,26 @@ def environment_field_row(info: dict) -> rx.Component:
         rx.hstack(
             tooltip,
             rx.spacer(),
-            rx.button(
-                "Reset",
-                on_click=PlaygroundState.reset_environment_value(key),
-                background=COLORS["bg_tertiary"],
-                color=COLORS["text_secondary"],
-                border=f"1px solid {COLORS['border']}",
-                border_radius="6px",
-                padding_x="12px",
-                padding_y="6px",
-                font_size="13px",
-                cursor="pointer",
-                _hover={"background": COLORS["border"]},
-            ),
-            width="100%",
-            gap="12px",
         ),
         styled_input(
             value=PlaygroundState.environment_editor.get(key, ""),
             on_change=lambda value, key=key: PlaygroundState.edit_environment_value(key, value),
             placeholder=placeholder,
         ),
-        rx.hstack(
-            rx.spacer(),
+        rx.flex(
+            styled_button(
+                "Reset",
+                on_click=PlaygroundState.reset_environment_value(key),
+                color_scheme="error",
+            ),
             styled_button(
                 "Update",
                 on_click=PlaygroundState.apply_environment_value(key),
                 color_scheme="cyan",
             ),
+            gap="12px",
+            align="center",
+            justify="end",
             width="100%",
         ),
         display="flex",

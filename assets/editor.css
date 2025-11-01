@@ -10,20 +10,20 @@
   content: "";
   position: absolute;
   left: 0;
-  width: 100%;
-  height: 24px;
+  width: 110%;
+  height: 14px;
   pointer-events: none;
   z-index: 2;
 }
 
 .playground-monaco::before {
   top: 0;
-  background: linear-gradient(180deg, rgba(21, 21, 24, 1) 0%, rgba(21, 21, 24, 0.8) 50%, rgba(21, 21, 24, 0) 100%);
+  background: linear-gradient(180deg, rgba(21, 21, 24, 1) 0%, rgba(21, 21, 24, 0.6) 70%, rgba(21, 21, 24, 0) 100%);
 }
 
 .playground-monaco::after {
   bottom: 0;
-  background: linear-gradient(0deg, rgba(21, 21, 24, 1) 0%, rgba(21, 21, 24, 0.8) 50%, rgba(21, 21, 24, 0) 100%);
+  background: linear-gradient(0deg, rgba(21, 21, 24, 1) 0%, rgba(21, 21, 24, 0.6) 70%, rgba(21, 21, 24, 0) 100%);
 }
 
 .playground-monaco .monaco-editor,

@@ -319,6 +319,7 @@ def editor_section() -> rx.Component:
                 "minimap": {"enabled": False},
                 "lineNumbers": "on",
                 "renderWhitespace": "selection",
+                "padding": {"top": 12, "bottom": 12},
             },
             on_change=PlaygroundState.update_code,
             class_name="playground-monaco",

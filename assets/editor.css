@@ -39,3 +39,15 @@
 .playground-monaco .monaco-editor .overflow-guard {
   border-radius: 0;
 }
+
+.playground-upload {
+  border: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+}
+
+.playground-upload:focus-within {
+  outline: none !important;
+  border: none !important;
+}

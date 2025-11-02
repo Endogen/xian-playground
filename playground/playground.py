@@ -204,7 +204,7 @@ STATE_HEIGHT = "360px"
 
 
 def expert_section() -> rx.Component:
-    return card(
+    return rx.box(
         rx.accordion.root(
             rx.accordion.item(
                 header=rx.accordion.trigger(
@@ -224,13 +224,13 @@ def expert_section() -> rx.Component:
                     rx.vstack(
                         rx.text(
                             "Configure deterministic runtime context. Leave a field blank to fall back to live defaults.",
-                            color=COLORS["text_secondary"],
+                            color=COLORS["text_primary"],
                             size="2",
                             line_height="1.6",
                         ),
                         rx.text(
                             "Note: ctx.caller is managed by the runtime during contract-to-contract calls and cannot be overridden here.",
-                            color=COLORS["text_muted"],
+                            color=COLORS["text_secondary"],
                             font_style="italic",
                             size="1",
                             line_height="1.6",
@@ -253,8 +253,14 @@ def expert_section() -> rx.Component:
             type="single",
             collapsible=True,
             width="100%",
-            background="transparent",
+            background=COLORS["bg_secondary"],
+            default_value="expert",
         ),
+        background=COLORS["bg_secondary"],
+        border=f"1px solid {COLORS['border']}",
+        border_radius="12px",
+        padding="24px",
+        width="100%",
     )
 
 

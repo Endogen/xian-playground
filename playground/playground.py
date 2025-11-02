@@ -85,44 +85,47 @@ def section_header(
 ) -> rx.Component:
     """Section header with optional fullscreen icon and trailing controls."""
 
-    text_block = rx.vstack(
+    title_row = rx.hstack(
         rx.heading(
             title,
             size="5",
             color=COLORS["text_primary"],
             font_weight="600",
         ),
+        rx.spacer(),
         rx.cond(
-            description != "",
-            rx.text(
-                description,
-                color=COLORS["text_secondary"],
-                size="2",
-                line_height="1.6",
-            ),
+            trailing is not None,
+            trailing,
+            rx.fragment(),
         ),
+        rx.cond(
+            panel_id is not None,
+            panel_expand_icon(panel_id),
+            rx.fragment(),
+        ),
+        align_items="center",
+        width="100%",
+        gap="12px",
+    )
+
+    description_el = rx.cond(
+        description != "",
+        rx.text(
+            description,
+            color=COLORS["text_secondary"],
+            size="2",
+            line_height="1.6",
+        ),
+        rx.fragment(),
+    )
+
+    return rx.vstack(
+        title_row,
+        description_el,
         gap="8px",
         align_items="start",
         width="100%",
     )
-
-    controls: list[rx.Component] = []
-    if trailing is not None:
-        controls.append(trailing)
-    if panel_id:
-        controls.append(panel_expand_icon(panel_id))
-
-    if controls:
-        return rx.hstack(
-            text_block,
-            rx.spacer(),
-            *controls,
-            align_items="center",
-            width="100%",
-            gap="12px",
-        )
-
-    return text_block
 
 
 def styled_input(**kwargs) -> rx.Component:
@@ -621,7 +624,6 @@ def state_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
             "Contract State",
             "Live snapshot of every key stored in the driver. Refreshes after deployments and executions.",
             panel_id="state",
-            trailing=header_actions,
         ),
         rx.hstack(
             rx.checkbox(
@@ -637,6 +639,7 @@ def state_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
                 on_click=PlaygroundState.toggle_show_internal_state,
             ),
             rx.spacer(),
+            header_actions,
             align_items="center",
             spacing="3",
             width="100%",

@@ -597,6 +597,7 @@ def state_section() -> rx.Component:
                     padding="24px",
                 ),
             ),
+            rx.spacer(),
             styled_button(
                 "Export State",
                 on_click=PlaygroundState.export_state,
@@ -621,9 +622,8 @@ def state_section() -> rx.Component:
                 class_name="playground-upload",
             ),
             spacing="3",
-            justify="end",
-            width="100%",
             align_items="center",
+            width="100%",
         ),
     )
 

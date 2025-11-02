@@ -72,7 +72,9 @@ class PlaygroundState(rx.State):
 
     load_selected_contract: str = ""
     loaded_contract_code: str = ""
+    loaded_contract_decompiled: str = ""
     function_required_params: dict[str, List[str]] = {}
+    load_view_decompiled: bool = True
 
     kwargs_input: str = "{}"
     run_result: str = ""
@@ -122,6 +124,7 @@ class PlaygroundState(rx.State):
             self.function_name = ""
             self.load_selected_contract = ""
             self.loaded_contract_code = ""
+            self.loaded_contract_decompiled = ""
             self.function_required_params = {}
             return []
 
@@ -168,16 +171,22 @@ class PlaygroundState(rx.State):
     def refresh_loaded_contract(self):
         if not self.load_selected_contract:
             self.loaded_contract_code = ""
+            self.loaded_contract_decompiled = ""
             return []
 
         try:
             details: ContractDetails = contracting_service.get_contract_details(self.load_selected_contract)
         except Exception as exc:
             self.loaded_contract_code = ""
+            self.loaded_contract_decompiled = ""
             return [rx.toast.error(f"Failed to load contract '{self.load_selected_contract}': {exc}")]
 
         self.loaded_contract_code = details.source
+        self.loaded_contract_decompiled = details.decompiled_source
         return []
+
+    def toggle_load_view(self):
+        self.load_view_decompiled = not self.load_view_decompiled
 
     def prefill_kwargs_for_current_function(self):
         if not self.function_name:
@@ -205,6 +214,8 @@ class PlaygroundState(rx.State):
         self.function_required_params = {}
         self.load_selected_contract = ""
         self.loaded_contract_code = ""
+        self.loaded_contract_decompiled = ""
+        self.load_view_decompiled = True
         self.kwargs_input = "{}"
         self.run_result = ""
         self.state_is_editing = False
@@ -289,6 +300,7 @@ class PlaygroundState(rx.State):
         if self.load_selected_contract == target:
             self.load_selected_contract = ""
             self.loaded_contract_code = ""
+            self.loaded_contract_decompiled = ""
 
         self.run_result = ""
 

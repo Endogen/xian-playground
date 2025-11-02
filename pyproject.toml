@@ -11,7 +11,8 @@ dependencies = [
     "reflex (>=0.8.17,<0.9.0)",
     "xian-contracting @ file:///Users/endogen/Projekte/xian-playground/xian-contracting",
     "xian-linter (>=0.2.4,<0.3.0)",
-    "starlette (>=0.50.0,<0.51.0)"
+    "starlette (>=0.50.0,<0.51.0)",
+    "xian-py (>=0.4.7,<0.5.0)"
 ]
 
 

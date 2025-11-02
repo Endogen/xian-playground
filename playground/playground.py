@@ -372,12 +372,40 @@ def load_section() -> rx.Component:
                 border_radius="8px",
             ),
             rx.vstack(
+                rx.hstack(
+                    rx.text(
+                        rx.cond(
+                            PlaygroundState.load_view_decompiled,
+                            "Decompiled",
+                            "Raw",
+                        ),
+                        color=COLORS["text_secondary"],
+                        size="2",
+                    ),
+                    rx.spacer(),
+                    rx.switch(
+                        checked=PlaygroundState.load_view_decompiled,
+                        on_change=lambda value: PlaygroundState.toggle_load_view(),
+                        color_scheme="cyan",
+                    ),
+                    spacing="3",
+                    align_items="center",
+                    width="100%",
+                ),
                 rx.box(
                     rx.code_block(
                         rx.cond(
-                            PlaygroundState.loaded_contract_code == "",
-                            "# Source unavailable.",
-                            PlaygroundState.loaded_contract_code,
+                            PlaygroundState.load_view_decompiled,
+                            rx.cond(
+                                PlaygroundState.loaded_contract_decompiled == "",
+                                "# Decompiled source unavailable.",
+                                PlaygroundState.loaded_contract_decompiled,
+                            ),
+                            rx.cond(
+                                PlaygroundState.loaded_contract_code == "",
+                                "# Source unavailable.",
+                                PlaygroundState.loaded_contract_code,
+                            ),
                         ),
                         language="python",
                         wrap_lines=True,
@@ -391,7 +419,6 @@ def load_section() -> rx.Component:
                     border=f"1px solid {COLORS['border']}",
                     border_radius="8px",
                     padding="12px",
-                    gap="12px",
                     width="100%",
                 ),
                 gap="12px",

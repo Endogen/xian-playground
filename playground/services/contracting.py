@@ -15,6 +15,7 @@ from contracting.storage import hdf5
 from contracting.storage.driver import Driver
 from contracting.stdlib.bridge.decimal import ContractingDecimal
 from contracting.stdlib.bridge.time import Datetime
+from xian_py.decompiler import ContractDecompiler
 
 
 DEFAULT_SIGNER = "demo"
@@ -124,6 +125,7 @@ class ContractExportInfo:
 class ContractDetails:
     name: str
     source: str
+    decompiled_source: str
     exports: List[ContractExportInfo]
 
 
@@ -355,9 +357,11 @@ class ContractingService:
             raise ValueError(f"Contract '{clean_name}' is not deployed.")
 
         exports = self._parse_exports(source)
+        decompiled = self._safe_decompile(source)
         return ContractDetails(
             name=clean_name,
             source=source,
+            decompiled_source=decompiled,
             exports=exports,
         )
 
@@ -492,6 +496,14 @@ class ContractingService:
                     )
                 )
         return exports
+
+    @staticmethod
+    def _safe_decompile(source: str) -> str:
+        """Attempt to decompile contract source, returning trimmed output or fallback."""
+        try:
+            return ContractDecompiler().decompile(source)
+        except Exception:
+            return source
 
 
 contracting_service = ContractingService()

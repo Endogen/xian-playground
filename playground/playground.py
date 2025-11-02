@@ -4,6 +4,7 @@ import reflex as rx
 
 from .components import MonacoEditor
 from .services import ENVIRONMENT_FIELDS
+from reflex.components.radix.themes.components.badge import Badge
 from .state import PlaygroundState
 
 
@@ -152,13 +153,16 @@ def environment_field_row(info: dict) -> rx.Component:
     tooltip_text = info.get("tooltip", "")
     placeholder = info.get("placeholder", "")
 
+    badge = Badge.create(
+        label,
+        size="1",
+        color_scheme="cyan",
+        high_contrast=True,
+        radius="medium",
+    )
+
     tooltip = rx.tooltip(
-        rx.text(
-            label,
-            font_weight="500",
-            color=COLORS["text_primary"],
-            size="2",
-        ),
+        badge,
         content=tooltip_text,
         delay_duration=200,
     )

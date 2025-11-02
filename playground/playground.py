@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any, Dict
+
 import reflex as rx
 
 from .components import MonacoEditor
@@ -322,7 +324,11 @@ def expert_section() -> rx.Component:
     )
 
 
-def editor_section() -> rx.Component:
+def editor_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
+    card_kwargs = card_kwargs or {}
+    is_fullscreen = card_kwargs.get("flex") is not None
+    editor_height = "100%" if is_fullscreen else EDITOR_HEIGHT
+
     return card(
         section_header(
             "Write Contract",
@@ -334,24 +340,29 @@ def editor_section() -> rx.Component:
             value=PlaygroundState.contract_name,
             on_change=PlaygroundState.update_contract_name,
         ),
-        MonacoEditor.create(
-            value=PlaygroundState.code_editor,
-            language="python",
-            theme="vs-dark",
-            height=EDITOR_HEIGHT,
-            options={
-                "automaticLayout": True,
-                "tabSize": 4,
-                "insertSpaces": True,
-                "scrollBeyondLastLine": False,
-                "wordWrap": "on",
-                "minimap": {"enabled": False},
-                "lineNumbers": "on",
-                "renderWhitespace": "selection",
-                "padding": {"top": 12, "bottom": 12},
-            },
-            on_change=PlaygroundState.update_code,
-            class_name="playground-monaco",
+        rx.box(
+            MonacoEditor.create(
+                value=PlaygroundState.code_editor,
+                language="python",
+                theme="vs-dark",
+                height=editor_height,
+                options={
+                    "automaticLayout": True,
+                    "tabSize": 4,
+                    "insertSpaces": True,
+                    "scrollBeyondLastLine": False,
+                    "wordWrap": "on",
+                    "minimap": {"enabled": False},
+                    "lineNumbers": "on",
+                    "renderWhitespace": "selection",
+                    "padding": {"top": 12, "bottom": 12},
+                },
+                on_change=PlaygroundState.update_code,
+                class_name="playground-monaco",
+            ),
+            flex="1 1 auto",
+            min_height="0",
+            width="100%",
         ),
         rx.hstack(
             rx.spacer(),
@@ -393,10 +404,13 @@ def editor_section() -> rx.Component:
             ),
             rx.fragment(),
         ),
+        **card_kwargs,
     )
 
 
-def load_section() -> rx.Component:
+def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
+    card_kwargs = card_kwargs or {}
+    is_fullscreen = card_kwargs.get("flex") is not None
     return card(
         section_header(
             "Load Contract",
@@ -476,26 +490,36 @@ def load_section() -> rx.Component:
                         language="python",
                         wrap_lines=True,
                         width="100%",
-                        min_height="360px",
-                        max_height="520px",
+                        min_height="360px" if not is_fullscreen else None,
+                        max_height="520px" if not is_fullscreen else None,
                         overflow_y="auto",
                         background=COLORS["bg_tertiary"],
                         font_size="14px",
+                        style={"height": "100%"} if is_fullscreen else None,
                     ),
                     background=COLORS["bg_tertiary"],
                     border=f"1px solid {COLORS['border']}",
                     border_radius="8px",
                     padding="12px",
                     width="100%",
+                    flex="1 1 auto" if is_fullscreen else None,
+                    min_height="0" if is_fullscreen else None,
+                    display="flex" if is_fullscreen else None,
+                    flex_direction="column" if is_fullscreen else None,
                 ),
                 gap="12px",
                 width="100%",
+                flex="1 1 auto" if is_fullscreen else None,
+                min_height="0" if is_fullscreen else None,
             ),
         ),
+        **card_kwargs,
     )
 
 
-def execution_section() -> rx.Component:
+def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
+    card_kwargs = card_kwargs or {}
+    is_fullscreen = card_kwargs.get("flex") is not None
     return card(
         section_header(
             "Execute Contract",
@@ -549,17 +573,25 @@ def execution_section() -> rx.Component:
                 wrap_lines=True,
                 width="100%",
                 background=COLORS["bg_tertiary"],
+                style={"height": "100%"} if is_fullscreen else None,
             ),
             background=COLORS["bg_tertiary"],
             border=f"1px solid {COLORS['border']}",
             border_radius="8px",
             padding="12px",
             overflow="auto",
+            flex="1 1 auto" if is_fullscreen else None,
+            min_height="0" if is_fullscreen else None,
+            display="flex" if is_fullscreen else None,
         ),
+        **card_kwargs,
     )
 
 
-def state_section() -> rx.Component:
+def state_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
+    card_kwargs = card_kwargs or {}
+    is_fullscreen = card_kwargs.get("flex") is not None
+
     header_actions = rx.cond(
         PlaygroundState.state_is_editing,
         rx.hstack(
@@ -616,30 +648,37 @@ def state_section() -> rx.Component:
                     value=PlaygroundState.state_editor,
                     on_change=PlaygroundState.update_state_editor,
                     font_family="'Fira Code', 'Monaco', 'Courier New', monospace",
-                    min_height=STATE_HEIGHT,
+                    min_height="0" if is_fullscreen else STATE_HEIGHT,
                     max_height="520px",
                     width="100%",
                     overflow_y="auto",
                     spell_check=False,
+                    height="100%" if is_fullscreen else None,
                 ),
+                flex="1 1 auto" if is_fullscreen else None,
+                min_height="0" if is_fullscreen else None,
+                display="flex" if is_fullscreen else None,
             ),
-        rx.box(
-            rx.code_block(
-                PlaygroundState.state_dump,
-                language="json",
-                wrap_lines=True,
-                width="100%",
-                min_height=STATE_HEIGHT,
-                max_height="520px",
-                overflow_y="auto",
-                background=COLORS["bg_tertiary"],
-                font_size="14px",
-            ),
+            rx.box(
+                rx.code_block(
+                    PlaygroundState.state_dump,
+                    language="json",
+                    wrap_lines=True,
+                    width="100%",
+                    min_height="0" if is_fullscreen else STATE_HEIGHT,
+                    max_height="520px" if not is_fullscreen else None,
+                    overflow_y="auto",
+                    background=COLORS["bg_tertiary"],
+                    font_size="14px",
+                    style={"height": "100%"} if is_fullscreen else None,
+                ),
                 background=COLORS["bg_tertiary"],
                 border=f"1px solid {COLORS['border']}",
                 border_radius="8px",
                 padding="12px",
                 overflow="auto",
+                flex="1 1 auto" if is_fullscreen else None,
+                min_height="0" if is_fullscreen else None,
             ),
         ),
         rx.hstack(
@@ -714,20 +753,30 @@ def state_section() -> rx.Component:
             align_items="center",
             width="100%",
         ),
+        **card_kwargs,
     )
 
 
 def expanded_panel_content() -> rx.Component:
+    fullscreen_card_props = {
+        "height": "100%",
+        "min_height": "0",
+        "flex": "1 1 auto",
+        "display": "flex",
+        "flex_direction": "column",
+        "class_name": "fullscreen-card",
+    }
+
     return rx.cond(
         PlaygroundState.expanded_panel == "write",
-        editor_section(),
+        editor_section(card_kwargs=fullscreen_card_props),
         rx.cond(
             PlaygroundState.expanded_panel == "load",
-            load_section(),
+            load_section(card_kwargs=fullscreen_card_props),
             rx.cond(
                 PlaygroundState.expanded_panel == "execute",
-                execution_section(),
-                state_section(),
+                execution_section(card_kwargs=fullscreen_card_props),
+                state_section(card_kwargs=fullscreen_card_props),
             ),
         ),
     )
@@ -742,6 +791,11 @@ def fullscreen_overlay() -> rx.Component:
             inset="0",
             padding=["16px", "24px", "32px"],
             background=COLORS["bg_primary"],
+            min_height="100vh",
+            height="100vh",
+            display="flex",
+            flex_direction="column",
+            align_items="stretch",
             overflow_y="auto",
             z_index="1000",
         ),

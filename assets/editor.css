@@ -52,6 +52,42 @@
   border: none !important;
 }
 
+.fullscreen-card {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+}
+
+.fullscreen-card .playground-monaco {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.fullscreen-card .playground-monaco .monaco-editor,
+.fullscreen-card .playground-monaco .monaco-editor .overflow-guard {
+  height: 100% !important;
+}
+
+.fullscreen-card .rt-CodeBlock {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.fullscreen-card .rt-CodeBlock pre {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+}
+
+.fullscreen-card textarea {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+}
+
 .playground-env-accordion .rt-AccordionItem {
   background: transparent !important;
 }

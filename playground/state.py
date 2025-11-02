@@ -75,6 +75,7 @@ class PlaygroundState(rx.State):
     loaded_contract_decompiled: str = ""
     function_required_params: dict[str, List[str]] = {}
     load_view_decompiled: bool = True
+    expanded_panel: str = ""
 
     kwargs_input: str = "{}"
     run_result: str = ""
@@ -186,6 +187,12 @@ class PlaygroundState(rx.State):
     def toggle_load_view(self):
         self.load_view_decompiled = not self.load_view_decompiled
 
+    def toggle_panel(self, panel_id: str):
+        target = (panel_id or "").strip()
+        if not target:
+            return
+        self.expanded_panel = "" if self.expanded_panel == target else target
+
     def prefill_kwargs_for_current_function(self, force: bool = False):
         if not self.function_name:
             return
@@ -215,6 +222,7 @@ class PlaygroundState(rx.State):
         self.loaded_contract_code = ""
         self.loaded_contract_decompiled = ""
         self.load_view_decompiled = True
+        self.expanded_panel = ""
         self.kwargs_input = "{}"
         self.run_result = ""
         self.state_is_editing = False
@@ -300,6 +308,8 @@ class PlaygroundState(rx.State):
             self.load_selected_contract = ""
             self.loaded_contract_code = ""
             self.loaded_contract_decompiled = ""
+        if self.expanded_panel == target:
+            self.expanded_panel = ""
 
         self.run_result = ""
 

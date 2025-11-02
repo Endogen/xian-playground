@@ -46,9 +46,44 @@ def card(
     return rx.box(*children, **{**default_style, **kwargs})
 
 
-def section_header(title: str, description: str = "") -> rx.Component:
-    """Section header with title and optional description."""
-    return rx.vstack(
+def panel_expand_icon(panel_id: str) -> rx.Component:
+    is_expanded = PlaygroundState.expanded_panel == panel_id
+    icon_color = COLORS["text_secondary"]
+
+    icon = rx.cond(
+        is_expanded,
+        rx.icon(tag="minimize_2", size=18, color=icon_color),
+        rx.icon(tag="maximize_2", size=18, color=icon_color),
+    )
+
+    return rx.tooltip(
+        rx.box(
+            icon,
+            on_click=lambda _: PlaygroundState.toggle_panel(panel_id),
+            cursor="pointer",
+            padding="6px",
+            border_radius="999px",
+            background=COLORS["bg_tertiary"],
+            _hover={"background": COLORS["bg_secondary"]},
+        ),
+        content=rx.cond(
+            is_expanded,
+            "Exit fullscreen",
+            "Toggle fullscreen",
+        ),
+        delay_duration=200,
+    )
+
+
+def section_header(
+    title: str,
+    description: str = "",
+    panel_id: str | None = None,
+    trailing: rx.Component | None = None,
+) -> rx.Component:
+    """Section header with optional fullscreen icon and trailing controls."""
+
+    text_block = rx.vstack(
         rx.heading(
             title,
             size="5",
@@ -68,6 +103,24 @@ def section_header(title: str, description: str = "") -> rx.Component:
         align_items="start",
         width="100%",
     )
+
+    controls: list[rx.Component] = []
+    if trailing is not None:
+        controls.append(trailing)
+    if panel_id:
+        controls.append(panel_expand_icon(panel_id))
+
+    if controls:
+        return rx.hstack(
+            text_block,
+            rx.spacer(),
+            *controls,
+            align_items="center",
+            width="100%",
+            gap="12px",
+        )
+
+    return text_block
 
 
 def styled_input(**kwargs) -> rx.Component:
@@ -274,6 +327,7 @@ def editor_section() -> rx.Component:
         section_header(
             "Write Contract",
             "Write a Python smart contract, pick a unique name, and deploy it into the local sandbox.",
+            panel_id="write",
         ),
         styled_input(
             placeholder="Contract name",
@@ -347,6 +401,7 @@ def load_section() -> rx.Component:
         section_header(
             "Load Contract",
             "Inspect deployed contract source code.",
+            panel_id="load",
         ),
         rx.hstack(
             rx.box(
@@ -445,6 +500,7 @@ def execution_section() -> rx.Component:
         section_header(
             "Execute Contract",
             "Pick a deployed contract and exported function to run.",
+            panel_id="execute",
         ),
         styled_select(
             items=PlaygroundState.deployed_contracts,
@@ -504,60 +560,53 @@ def execution_section() -> rx.Component:
 
 
 def state_section() -> rx.Component:
+    header_actions = rx.cond(
+        PlaygroundState.state_is_editing,
+        rx.hstack(
+            styled_button(
+                "Save Changes",
+                color_scheme="success",
+                on_click=PlaygroundState.toggle_state_editor,
+            ),
+            styled_button(
+                "Cancel",
+                color_scheme="error",
+                on_click=PlaygroundState.cancel_state_editing,
+            ),
+            spacing="3",
+            align="center",
+            justify="end",
+        ),
+        styled_button(
+            "Edit State",
+            color_scheme="cyan",
+            on_click=PlaygroundState.toggle_state_editor,
+        ),
+    )
+
     return card(
-        rx.vstack(
-            rx.hstack(
-                section_header(
-                    "Contract State",
-                    "Live snapshot of every key stored in the driver.",
-                ),
-                rx.spacer(),
-                align_items="center",
-                spacing="4",
-                width="100%",
+        section_header(
+            "Contract State",
+            "Live snapshot of every key stored in the driver. Refreshes after deployments and executions.",
+            panel_id="state",
+            trailing=header_actions,
+        ),
+        rx.hstack(
+            rx.checkbox(
+                checked=PlaygroundState.show_internal_state,
+                on_change=PlaygroundState.set_show_internal_state,
+                color_scheme="cyan",
             ),
-            rx.hstack(
-                rx.checkbox(
-                    checked=PlaygroundState.show_internal_state,
-                    on_change=PlaygroundState.set_show_internal_state,
-                    color_scheme="cyan",
-                ),
-                rx.text(
-                    "Show protected state keys",
-                    color=COLORS["text_primary"],
-                    size="2",
-                    cursor="pointer",
-                    on_click=PlaygroundState.toggle_show_internal_state,
-                ),
-                rx.spacer(),
-                rx.cond(
-                    PlaygroundState.state_is_editing,
-                    rx.hstack(
-                        styled_button(
-                            "Save Changes",
-                            color_scheme="success",
-                            on_click=PlaygroundState.toggle_state_editor,
-                        ),
-                        styled_button(
-                            "Cancel",
-                            color_scheme="error",
-                            on_click=PlaygroundState.cancel_state_editing,
-                        ),
-                        spacing="3",
-                        align="center",
-                        justify="end",
-                    ),
-                    styled_button(
-                        "Edit State",
-                        color_scheme="cyan",
-                        on_click=PlaygroundState.toggle_state_editor,
-                    ),
-                ),
-                align_items="center",
-                spacing="3",
-                width="100%",
+            rx.text(
+                "Show protected state keys",
+                color=COLORS["text_primary"],
+                size="2",
+                cursor="pointer",
+                on_click=PlaygroundState.toggle_show_internal_state,
             ),
-            spacing="4",
+            rx.spacer(),
+            align_items="center",
+            spacing="3",
             width="100%",
         ),
         rx.cond(
@@ -668,6 +717,38 @@ def state_section() -> rx.Component:
     )
 
 
+def expanded_panel_content() -> rx.Component:
+    return rx.cond(
+        PlaygroundState.expanded_panel == "write",
+        editor_section(),
+        rx.cond(
+            PlaygroundState.expanded_panel == "load",
+            load_section(),
+            rx.cond(
+                PlaygroundState.expanded_panel == "execute",
+                execution_section(),
+                state_section(),
+            ),
+        ),
+    )
+
+
+def fullscreen_overlay() -> rx.Component:
+    return rx.cond(
+        PlaygroundState.expanded_panel != "",
+        rx.box(
+            expanded_panel_content(),
+            position="fixed",
+            inset="0",
+            padding=["16px", "24px", "32px"],
+            background=COLORS["bg_primary"],
+            overflow_y="auto",
+            z_index="1000",
+        ),
+        rx.fragment(),
+    )
+
+
 def header() -> rx.Component:
     """Modern header with gradient accent."""
     return rx.box(
@@ -766,6 +847,7 @@ def index() -> rx.Component:
             spacing="0",
             width="100%",
         ),
+        fullscreen_overlay(),
         background=COLORS["bg_primary"],
         min_height="100vh",
         width="100%",

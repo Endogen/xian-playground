@@ -112,7 +112,7 @@ class PlaygroundState(rx.State):
 
     def change_selected_function(self, value: str):
         self.function_name = value
-        self.prefill_kwargs_for_current_function()
+        self.prefill_kwargs_for_current_function(force=True)
 
     def refresh_contracts(self):
         contracts = contracting_service.list_contracts()
@@ -141,7 +141,6 @@ class PlaygroundState(rx.State):
             self.available_functions = []
             self.function_name = ""
             self.function_required_params = {}
-            self.kwargs_input = "{}"
             return
 
         exports: List[ContractExportInfo] = contracting_service.get_export_metadata(self.selected_contract)
@@ -158,7 +157,6 @@ class PlaygroundState(rx.State):
 
         if not functions:
             self.function_name = ""
-            self.kwargs_input = "{}"
         elif self.function_name not in functions:
             self.function_name = functions[0]
 
@@ -188,16 +186,17 @@ class PlaygroundState(rx.State):
     def toggle_load_view(self):
         self.load_view_decompiled = not self.load_view_decompiled
 
-    def prefill_kwargs_for_current_function(self):
+    def prefill_kwargs_for_current_function(self, force: bool = False):
         if not self.function_name:
-            self.kwargs_input = "{}"
             return
         required = self.function_required_params.get(self.function_name, [])
         if not required:
-            self.kwargs_input = "{}"
             return
-        payload = {name: "" for name in required}
-        self.kwargs_input = json.dumps(payload, indent=2)
+        # Only seed the editor if it is still empty or in the default form.
+        current = self.kwargs_input.strip()
+        if force or current in ("", "{}"):
+            payload = {name: "" for name in required}
+            self.kwargs_input = json.dumps(payload, indent=2)
 
     def confirm_clear_state(self):
         try:

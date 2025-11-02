@@ -417,6 +417,20 @@ class ContractingService:
 
         return json.dumps(snapshot, indent=2, sort_keys=True)
 
+    def remove_contract(self, name: str) -> None:
+        clean_name = (name or "").strip()
+        if not clean_name:
+            raise ValueError("Contract name is required.")
+        if clean_name == constants.SUBMISSION_CONTRACT_NAME:
+            raise ValueError("The submission contract cannot be removed.")
+
+        with self._lock:
+            if self._driver.get_contract(clean_name) is None:
+                raise ValueError(f"Contract '{clean_name}' is not deployed.")
+            self._driver.delete_contract(clean_name)
+            self._driver.flush_file(clean_name)
+            self._driver.commit()
+
     @staticmethod
     def _parse_exports(source: str) -> List[ContractExportInfo]:
         try:

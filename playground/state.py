@@ -190,6 +190,34 @@ class PlaygroundState(rx.State):
         payload = {name: "" for name in required}
         self.kwargs_input = json.dumps(payload, indent=2)
 
+    def remove_selected_contract(self):
+        target = self.load_selected_contract or self.selected_contract
+        if not target:
+            return [rx.toast.info("Select a contract to remove.")]
+
+        try:
+            contracting_service.remove_contract(target)
+        except Exception as exc:
+            return [rx.toast.error(f"Failed to remove contract '{target}': {exc}")]
+
+        if self.selected_contract == target:
+            self.selected_contract = ""
+            self.available_functions = []
+            self.function_name = ""
+            self.kwargs_input = "{}"
+
+        if self.load_selected_contract == target:
+            self.load_selected_contract = ""
+            self.loaded_contract_code = ""
+
+        self.run_result = ""
+
+        return [
+            rx.toast.success(f"Contract '{target}' removed."),
+            type(self).refresh_contracts,
+            type(self).refresh_state,
+        ]
+
     def refresh_state(self):
         snapshot = contracting_service.dump_state(self.show_internal_state)
         self.state_dump = snapshot

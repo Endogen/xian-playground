@@ -337,12 +337,27 @@ def load_section() -> rx.Component:
             "Load Contract",
             "Inspect deployed contract source code.",
         ),
-        styled_select(
-            items=PlaygroundState.deployed_contracts,
-            value=PlaygroundState.load_selected_contract,
-            placeholder="Select a contract",
-            on_change=PlaygroundState.change_loaded_contract,
-            disabled=PlaygroundState.deployed_contracts == [],
+        rx.hstack(
+            rx.box(
+                styled_select(
+                    items=PlaygroundState.deployed_contracts,
+                    value=PlaygroundState.load_selected_contract,
+                    placeholder="Select a contract",
+                    on_change=PlaygroundState.change_loaded_contract,
+                    disabled=PlaygroundState.deployed_contracts == [],
+                    width="100%",
+                ),
+                flex="1",
+            ),
+            styled_button(
+                "Remove Contract",
+                on_click=PlaygroundState.remove_selected_contract,
+                color_scheme="error",
+                disabled=PlaygroundState.load_selected_contract == "",
+            ),
+            spacing="3",
+            width="100%",
+            align_items="center",
         ),
         rx.cond(
             PlaygroundState.load_selected_contract == "",

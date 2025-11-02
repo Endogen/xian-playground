@@ -132,6 +132,7 @@ class ContractingService:
 
     def __init__(self, storage_home: Path | None = None):
         storage_home = storage_home or _default_storage_home()
+        self._storage_home = storage_home
         self._lock = threading.RLock()
         self._driver = Driver(storage_home=storage_home)
         self._client = ContractingService._create_client(driver=self._driver)
@@ -230,7 +231,7 @@ class ContractingService:
                 self._environment['signer'] = default
             else:
                 current = self._environment.get(key)
-                if current in (None, ""):
+                if current is None or (isinstance(current, str) and current.strip() == ""):
                     self._environment[key] = self._coerce_environment_value(key, default)
 
     def _coerce_environment_value(self, key: str, raw: Any) -> Any:
@@ -429,7 +430,17 @@ class ContractingService:
                 raise ValueError(f"Contract '{clean_name}' is not deployed.")
             self._driver.delete_contract(clean_name)
             self._driver.flush_file(clean_name)
+            self._driver.flush_cache()
             self._driver.commit()
+
+    def reset_state(self) -> None:
+        with self._lock:
+            self._driver.flush_full()
+            self._driver = Driver(storage_home=self._storage_home)
+            self._client = ContractingService._create_client(driver=self._driver)
+            self._environment = self._client.environment
+            self._apply_default_environment()
+            self._prune_environment()
 
     @staticmethod
     def _parse_exports(source: str) -> List[ContractExportInfo]:

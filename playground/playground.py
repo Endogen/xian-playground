@@ -515,10 +515,10 @@ def state_section() -> rx.Component:
                     ),
                 ),
                 align_items="center",
-                gap="12px",
+                spacing="3",
                 width="100%",
             ),
-            gap="12px",
+            spacing="4",
             width="100%",
         ),
         rx.cond(
@@ -552,6 +552,72 @@ def state_section() -> rx.Component:
                 padding="12px",
                 overflow="auto",
             ),
+        ),
+        rx.hstack(
+            rx.alert_dialog.root(
+                rx.alert_dialog.trigger(
+                    styled_button(
+                        "Clear All State",
+                        color_scheme="error",
+                    ),
+                ),
+                rx.alert_dialog.content(
+                    rx.vstack(
+                        rx.alert_dialog.title(
+                            "Clear all contracts and runtime state?",
+                        ),
+                        rx.alert_dialog.description(
+                            "This wipes every deployed contract (except the system submission contract) and resets the driver. This cannot be undone.",
+                        ),
+                        rx.hstack(
+                            rx.alert_dialog.cancel(
+                                styled_button(
+                                    "Cancel",
+                                    color_scheme="blue",
+                                ),
+                            ),
+                            rx.alert_dialog.action(
+                                styled_button(
+                                    "Confirm Clear",
+                                    color_scheme="error",
+                                    on_click=PlaygroundState.confirm_clear_state,
+                                ),
+                            ),
+                            spacing="3",
+                            justify="end",
+                            width="100%",
+                        ),
+                        spacing="4",
+                        align_items="stretch",
+                    ),
+                    max_width="420px",
+                    background=COLORS["bg_secondary"],
+                    border=f"1px solid {COLORS['border']}",
+                    border_radius="12px",
+                    padding="24px",
+                ),
+            ),
+            styled_button(
+                "Export State",
+                on_click=PlaygroundState.export_state,
+                color_scheme="cyan",
+            ),
+            rx.upload(
+                styled_button(
+                    "Import State",
+                    color_scheme="purple",
+                ),
+                accept={"application/json": [".json"]},
+                multiple=False,
+                max_files=1,
+                on_drop=PlaygroundState.import_state,
+                no_drag=True,
+                drag_active_style={},
+            ),
+            spacing="3",
+            justify="end",
+            width="100%",
+            align_items="center",
         ),
     )
 

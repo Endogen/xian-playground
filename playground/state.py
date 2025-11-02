@@ -190,6 +190,86 @@ class PlaygroundState(rx.State):
         payload = {name: "" for name in required}
         self.kwargs_input = json.dumps(payload, indent=2)
 
+    def confirm_clear_state(self):
+        try:
+            contracting_service.reset_state()
+        except Exception as exc:
+            return [rx.toast.error(f"Failed to clear state: {exc}")]
+
+        env = contracting_service.get_environment()
+
+        self.deployed_contracts = []
+        self.selected_contract = ""
+        self.available_functions = []
+        self.function_name = ""
+        self.function_required_params = {}
+        self.load_selected_contract = ""
+        self.loaded_contract_code = ""
+        self.kwargs_input = "{}"
+        self.run_result = ""
+        self.state_is_editing = False
+        self.state_dump = "{}"
+        self.state_editor = "{}"
+        self.lint_results = []
+        self.code_editor = DEFAULT_CONTRACT
+        self.contract_name = "con_demo_token"
+        self.environment_editor = {
+            key: self._stringify_env_value(env.get(key))
+            for key in ENVIRONMENT_FIELD_KEYS
+        }
+
+        return [
+            rx.toast.success("All contracts and state cleared."),
+            type(self).refresh_environment,
+            type(self).refresh_contracts,
+            type(self).refresh_state,
+        ]
+
+    def export_state(self):
+        data = contracting_service.dump_state(show_internal=True)
+        return [
+            rx.download(
+                data=data,
+                filename="contract_state.json",
+            )
+        ]
+
+    async def import_state(self, files: list[rx.UploadFile]):
+        if not files:
+            return [rx.toast.info("Select a JSON export to import.")]
+
+        file = files[0]
+        try:
+            content = await file.read()
+        except Exception as exc:
+            return [rx.toast.error(f"Failed to read import: {exc}")]
+        finally:
+            await file.close()
+
+        if isinstance(content, bytes):
+            try:
+                text = content.decode("utf-8")
+            except UnicodeDecodeError:
+                return [rx.toast.error("Import file must be UTF-8 encoded JSON.")]
+        else:
+            text = str(content)
+
+        try:
+            payload = json.loads(text)
+        except json.JSONDecodeError as exc:
+            return [rx.toast.error(f"Invalid JSON: {exc}")]
+
+        try:
+            contracting_service.apply_state_snapshot(payload)
+        except Exception as exc:
+            return [rx.toast.error(f"Failed to import state: {exc}")]
+
+        return [
+            rx.toast.success("State imported."),
+            type(self).refresh_state,
+            type(self).refresh_contracts,
+        ]
+
     def remove_selected_contract(self):
         target = self.load_selected_contract or self.selected_contract
         if not target:

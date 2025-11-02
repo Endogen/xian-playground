@@ -51,3 +51,33 @@
   outline: none !important;
   border: none !important;
 }
+
+.playground-env-accordion .rt-AccordionItem {
+  background: transparent !important;
+}
+
+.playground-env-accordion .rt-AccordionTrigger {
+  background: #1a1a1d !important;
+  border: 1px solid #27272a !important;
+  border-radius: 8px !important;
+  transition: background 0.2s ease;
+  padding: 8px 12px !important;
+  color: #a1a1aa !important;
+}
+
+.playground-env-accordion .rt-Heading {
+  color: #0a0a0b !important;
+}
+
+.playground-env-accordion .rt-AccordionTrigger[data-state="open"],
+.playground-env-accordion .rt-AccordionTrigger:hover {
+  background: #151518 !important;
+}
+
+.playground-env-accordion .rt-AccordionContent {
+  background: #151518 !important;
+  border: 1px solid #27272a !important;
+  border-radius: 8px !important;
+  margin-top: 12px;
+  padding: 0 !important;
+}

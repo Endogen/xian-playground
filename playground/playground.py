@@ -204,7 +204,7 @@ STATE_HEIGHT = "360px"
 
 
 def expert_section() -> rx.Component:
-    return rx.box(
+    return card(
         rx.accordion.root(
             rx.accordion.item(
                 header=rx.accordion.trigger(
@@ -218,49 +218,50 @@ def expert_section() -> rx.Component:
                         rx.spacer(),
                         rx.accordion.icon(color=COLORS["accent_cyan"]),
                     ),
-                    padding_y="4px",
+                    padding_y="8px",
+                    padding_x="12px",
                 ),
                 content=rx.accordion.content(
-                    rx.vstack(
-                        rx.text(
-                            "Configure deterministic runtime context. Leave a field blank to fall back to live defaults.",
-                            color=COLORS["text_primary"],
-                            size="2",
-                            line_height="1.6",
-                        ),
-                        rx.text(
-                            "Note: ctx.caller is managed by the runtime during contract-to-contract calls and cannot be overridden here.",
-                            color=COLORS["text_secondary"],
-                            font_style="italic",
-                            size="1",
-                            line_height="1.6",
-                        ),
-                        rx.flex(
-                            *[environment_field_row(field) for field in ENVIRONMENT_FIELDS],
-                            wrap="wrap",
-                            spacing="3",
+                    rx.box(
+                        rx.vstack(
+                            rx.text(
+                                "Configure deterministic runtime context. Leave a field blank to fall back to live defaults.",
+                                color=COLORS["text_primary"],
+                                size="2",
+                                line_height="1.6",
+                            ),
+                            rx.text(
+                                "Note: ctx.caller is managed by the runtime during contract-to-contract calls and cannot be overridden here.",
+                                color=COLORS["text_secondary"],
+                                font_style="italic",
+                                size="1",
+                                line_height="1.6",
+                            ),
+                            rx.flex(
+                                *[environment_field_row(field) for field in ENVIRONMENT_FIELDS],
+                                wrap="wrap",
+                                spacing="3",
+                                width="100%",
+                                align="stretch",
+                            ),
+                            gap="16px",
                             width="100%",
-                            align="stretch",
                         ),
-                        gap="16px",
-                        width="100%",
+                        background=COLORS["bg_secondary"],
+                        border=f"1px solid {COLORS['border']}",
+                        border_radius="8px",
+                        padding="16px",
                     ),
-                    padding_top="0px",
-                    padding_bottom="16px",
+                    padding_top="12px",
                 ),
                 value="expert",
             ),
             type="single",
             collapsible=True,
             width="100%",
-            background=COLORS["bg_secondary"],
             default_value="expert",
+            class_name="playground-env-accordion",
         ),
-        background=COLORS["bg_secondary"],
-        border=f"1px solid {COLORS['border']}",
-        border_radius="12px",
-        padding="24px",
-        width="100%",
     )
 
 

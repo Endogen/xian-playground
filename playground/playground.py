@@ -660,6 +660,7 @@ def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component
 def state_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
     card_kwargs = card_kwargs or {}
     is_fullscreen = card_kwargs.get("flex") is not None
+    panel_height = "100%" if is_fullscreen else STATE_HEIGHT
 
     header_actions = rx.cond(
         PlaygroundState.state_is_editing,
@@ -684,6 +685,38 @@ def state_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
             on_click=PlaygroundState.toggle_state_editor,
         ),
     )
+
+    outer_panel_props: Dict[str, Any] = {
+        "width": "100%",
+        "display": "flex",
+        "flex_direction": "column",
+        "gap": "12px",
+        "flex": "1 1 auto",
+    }
+    if is_fullscreen:
+        outer_panel_props.update(
+            {
+                "height": "100%",
+                "min_height": "0",
+            }
+        )
+    else:
+        outer_panel_props.update(
+            {
+                "height": panel_height,
+                "min_height": panel_height,
+                "max_height": panel_height,
+            }
+        )
+
+    inner_box_props: Dict[str, Any] = {
+        "flex": "1 1 auto",
+        "width": "100%",
+        "overflow": "auto",
+        "min_height": "0",
+    }
+    if not is_fullscreen:
+        inner_box_props["height"] = "100%"
 
     return card(
         section_header(
@@ -713,45 +746,37 @@ def state_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
         rx.cond(
             PlaygroundState.state_is_editing,
             rx.box(
-                styled_text_area(
-                    value=PlaygroundState.state_editor,
-                    on_change=PlaygroundState.update_state_editor,
-                    font_family="'Fira Code', 'Monaco', 'Courier New', monospace",
-                    min_height="0" if is_fullscreen else STATE_HEIGHT,
-                    max_height="520px",
-                    width="100%",
-                    overflow_y="auto",
-                    spell_check=False,
-                    height="100%" if is_fullscreen else None,
+                rx.box(
+                    styled_text_area(
+                        value=PlaygroundState.state_editor,
+                        on_change=PlaygroundState.update_state_editor,
+                        font_family="'Fira Code', 'Monaco', 'Courier New', monospace",
+                        width="100%",
+                        overflow_y="auto",
+                        spell_check=False,
+                        height="100%",
+                    ),
+                    **inner_box_props,
                 ),
-                max_height="50vh" if is_fullscreen else STATE_HEIGHT,
-                overflow="auto",
-                flex="1 1 auto" if is_fullscreen else None,
-                min_height="0" if is_fullscreen else None,
-                display="flex" if is_fullscreen else None,
+                **outer_panel_props,
             ),
             rx.box(
-                rx.code_block(
-                    PlaygroundState.state_dump,
-                    language="json",
-                    wrap_lines=True,
-                    width="100%",
-                    min_height="0" if is_fullscreen else STATE_HEIGHT,
-                    max_height="520px" if not is_fullscreen else None,
-                    overflow_y="auto",
-                background=COLORS["bg_tertiary"],
-                font_size="14px",
-                style={"height": "100%"} if is_fullscreen else None,
+                rx.box(
+                    rx.code_block(
+                        PlaygroundState.state_dump,
+                        language="json",
+                        wrap_lines=True,
+                        font_size=12,
+                        width="100%",
+                        style={
+                            "height": "95%",
+                            "margin": "0",
+                        },
+                    ),
+                    **inner_box_props,
+                ),
+                **outer_panel_props,
             ),
-            background=COLORS["bg_tertiary"],
-            border=f"1px solid {COLORS['border']}",
-            border_radius="8px",
-            padding="12px",
-            overflow="auto",
-            max_height="50vh" if is_fullscreen else STATE_HEIGHT,
-            flex="1 1 auto" if is_fullscreen else None,
-            min_height="0" if is_fullscreen else None,
-        ),
         ),
         rx.hstack(
             rx.alert_dialog.root(

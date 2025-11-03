@@ -454,13 +454,15 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
             {
                 "flex": "1 1 auto",
                 "min_height": "0",
-                "max_height": "50vh",
+                "height": "100%",
+                "max_height": "100%",
             }
         )
         stack_props.update(
             {
                 "flex": "1 1 auto",
                 "min_height": "0",
+                "height": "100%",
             }
         )
     else:
@@ -473,7 +475,6 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
         )
         stack_props.update(
             {
-                "height": LOAD_VIEW_HEIGHT,
                 "flex": "0 0 auto",
             }
         )

@@ -44,7 +44,12 @@ def card(
         "gap": "16px",
         "width": "100%",
         "box_shadow": "0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2)",
+        "max_height": "720px",
+        "overflow": "hidden",
     }
+    if kwargs.get("flex"):
+        default_style.pop("max_height", None)
+        default_style.pop("overflow", None)
     return rx.box(*children, **{**default_style, **kwargs})
 
 
@@ -330,15 +335,25 @@ def expert_section() -> rx.Component:
 def editor_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
     card_kwargs = card_kwargs or {}
     is_fullscreen = card_kwargs.get("flex") is not None
-    editor_height = "100%"
+    editor_height = "100%" if is_fullscreen else EDITOR_HEIGHT
+
     editor_container_kwargs: Dict[str, Any] = {
-        "flex": "1 1 auto",
-        "min_height": EDITOR_HEIGHT,
         "width": "100%",
         "display": "flex",
+        "min_height": EDITOR_HEIGHT,
+        "max_height": EDITOR_HEIGHT,
+        "height": EDITOR_HEIGHT,
+        "overflow": "hidden",
     }
     if is_fullscreen:
-        editor_container_kwargs["min_height"] = "0"
+        editor_container_kwargs.update(
+            {
+                "flex": "1 1 auto",
+                "min_height": "0",
+                "max_height": None,
+                "height": "100%",
+            }
+        )
 
     return card(
         section_header(
@@ -511,6 +526,8 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
                     border_radius="8px",
                     padding="12px",
                     width="100%",
+                    max_height="50vh" if is_fullscreen else "360px",
+                    overflow="auto",
                     flex="1 1 auto" if is_fullscreen else None,
                     min_height="0" if is_fullscreen else None,
                     display="flex" if is_fullscreen else None,
@@ -536,23 +553,20 @@ def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component
         "on_change": PlaygroundState.update_kwargs,
         "font_family": "'Fira Code', 'Monaco', 'Courier New', monospace",
         "spell_check": False,
+        "min_height": "0" if is_fullscreen else "120px",
+    }
+    textarea_container_props: Dict[str, Any] = {
+        "width": "100%",
+        "flex": "1 1 auto" if is_fullscreen else None,
+        "min_height": "0" if is_fullscreen else None,
+        "max_height": "50vh" if is_fullscreen else "360px",
+        "overflow": "auto",
     }
     if is_fullscreen:
-        textarea_kwargs.update(
-            {
-                "min_height": "0",
-                "height": "100%",
-                "style": {"flex": "1 1 auto", "minHeight": "0"},
-            }
-        )
-    else:
-        textarea_kwargs["min_height"] = "120px"
-
+        textarea_kwargs["height"] = "100%"
     textarea_box = rx.box(
         styled_text_area(**textarea_kwargs),
-        width="100%",
-        flex="1 1 auto" if is_fullscreen else None,
-        min_height="0" if is_fullscreen else None,
+        **textarea_container_props,
     )
 
     result_container_props: Dict[str, Any] = {
@@ -570,6 +584,8 @@ def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component
                 "flex": "0 0 auto",
             }
         )
+    else:
+        result_container_props["max_height"] = "240px"
 
     return card(
         section_header(
@@ -691,6 +707,8 @@ def state_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
                     spell_check=False,
                     height="100%" if is_fullscreen else None,
                 ),
+                max_height="50vh" if is_fullscreen else STATE_HEIGHT,
+                overflow="auto",
                 flex="1 1 auto" if is_fullscreen else None,
                 min_height="0" if is_fullscreen else None,
                 display="flex" if is_fullscreen else None,
@@ -704,18 +722,19 @@ def state_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
                     min_height="0" if is_fullscreen else STATE_HEIGHT,
                     max_height="520px" if not is_fullscreen else None,
                     overflow_y="auto",
-                    background=COLORS["bg_tertiary"],
-                    font_size="14px",
-                    style={"height": "100%"} if is_fullscreen else None,
-                ),
                 background=COLORS["bg_tertiary"],
-                border=f"1px solid {COLORS['border']}",
-                border_radius="8px",
-                padding="12px",
-                overflow="auto",
-                flex="1 1 auto" if is_fullscreen else None,
-                min_height="0" if is_fullscreen else None,
+                font_size="14px",
+                style={"height": "100%"} if is_fullscreen else None,
             ),
+            background=COLORS["bg_tertiary"],
+            border=f"1px solid {COLORS['border']}",
+            border_radius="8px",
+            padding="12px",
+            overflow="auto",
+            max_height="50vh" if is_fullscreen else STATE_HEIGHT,
+            flex="1 1 auto" if is_fullscreen else None,
+            min_height="0" if is_fullscreen else None,
+        ),
         ),
         rx.hstack(
             rx.alert_dialog.root(

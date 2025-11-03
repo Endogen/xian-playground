@@ -115,6 +115,7 @@ class PlaygroundState(rx.State):
 
     def change_selected_function(self, value: str):
         self.function_name = value
+        self.run_result = ""
         self.prefill_kwargs_for_current_function(force=True)
 
     def refresh_contracts(self):
@@ -451,7 +452,8 @@ class PlaygroundState(rx.State):
             return [rx.toast.error(f"Failed to update state: {exc}")]
 
         self.state_is_editing = False
-        return [rx.toast.success("State updated."), type(self).refresh_state]
+        self.refresh_state()
+        return [rx.toast.success("State updated.")]
 
     def lint_contract(self):
         if self.linting:

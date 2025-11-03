@@ -523,6 +523,48 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
 def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
     card_kwargs = card_kwargs or {}
     is_fullscreen = card_kwargs.get("flex") is not None
+
+    textarea_kwargs: Dict[str, Any] = {
+        "placeholder": 'Kwargs as JSON, e.g. {"to": "alice", "amount": 25}',
+        "value": PlaygroundState.kwargs_input,
+        "on_change": PlaygroundState.update_kwargs,
+        "font_family": "'Fira Code', 'Monaco', 'Courier New', monospace",
+        "spell_check": False,
+    }
+    if is_fullscreen:
+        textarea_kwargs.update(
+            {
+                "min_height": "0",
+                "height": "100%",
+                "style": {"flex": "1 1 auto", "minHeight": "0"},
+            }
+        )
+    else:
+        textarea_kwargs["min_height"] = "120px"
+
+    textarea_box = rx.box(
+        styled_text_area(**textarea_kwargs),
+        width="100%",
+        flex="1 1 auto" if is_fullscreen else None,
+        min_height="0" if is_fullscreen else None,
+    )
+
+    result_container_props: Dict[str, Any] = {
+        "background": COLORS["bg_tertiary"],
+        "border": f"1px solid {COLORS['border']}",
+        "border_radius": "8px",
+        "padding": "12px",
+        "overflow": "auto",
+        "width": "100%",
+    }
+    if is_fullscreen:
+        result_container_props.update(
+            {
+                "max_height": "50vh",
+                "flex": "0 0 auto",
+            }
+        )
+
     return card(
         section_header(
             "Execute Contract",
@@ -541,14 +583,7 @@ def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component
             placeholder="Select a function",
             on_change=PlaygroundState.change_selected_function,
         ),
-        styled_text_area(
-            placeholder='Kwargs as JSON, e.g. {"to": "alice", "amount": 25}',
-            value=PlaygroundState.kwargs_input,
-            on_change=PlaygroundState.update_kwargs,
-            font_family="'Fira Code', 'Monaco', 'Courier New', monospace",
-            min_height="120px",
-            spell_check=False,
-        ),
+        textarea_box,
         styled_button(
             "Run Function",
             on_click=PlaygroundState.run_contract,
@@ -576,16 +611,8 @@ def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component
                 wrap_lines=True,
                 width="100%",
                 background=COLORS["bg_tertiary"],
-                style={"height": "100%"} if is_fullscreen else None,
             ),
-            background=COLORS["bg_tertiary"],
-            border=f"1px solid {COLORS['border']}",
-            border_radius="8px",
-            padding="12px",
-            overflow="auto",
-            flex="1 1 auto" if is_fullscreen else None,
-            min_height="0" if is_fullscreen else None,
-            display="flex" if is_fullscreen else None,
+            **result_container_props,
         ),
         **card_kwargs,
     )

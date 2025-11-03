@@ -108,7 +108,9 @@ class PlaygroundState(rx.State):
         self.kwargs_input = value
 
     def change_selected_contract(self, value: str):
-        self.selected_contract = value
+        if value != self.selected_contract:
+            self.selected_contract = value
+            self.kwargs_input = "{}"
         return [type(self).refresh_functions]
 
     def change_selected_function(self, value: str):
@@ -131,6 +133,7 @@ class PlaygroundState(rx.State):
 
         if self.selected_contract not in contracts:
             self.selected_contract = contracts[0]
+            self.kwargs_input = "{}"
 
         if not self.load_selected_contract or self.load_selected_contract not in contracts:
             self.load_selected_contract = contracts[0]

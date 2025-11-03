@@ -330,7 +330,15 @@ def expert_section() -> rx.Component:
 def editor_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
     card_kwargs = card_kwargs or {}
     is_fullscreen = card_kwargs.get("flex") is not None
-    editor_height = "100%" if is_fullscreen else EDITOR_HEIGHT
+    editor_height = "100%"
+    editor_container_kwargs: Dict[str, Any] = {
+        "flex": "1 1 auto",
+        "min_height": EDITOR_HEIGHT,
+        "width": "100%",
+        "display": "flex",
+    }
+    if is_fullscreen:
+        editor_container_kwargs["min_height"] = "0"
 
     return card(
         section_header(
@@ -363,9 +371,7 @@ def editor_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
                 on_change=PlaygroundState.update_code,
                 class_name="playground-monaco",
             ),
-            flex="1 1 auto",
-            min_height="0",
-            width="100%",
+            **editor_container_kwargs,
         ),
         rx.hstack(
             rx.spacer(),

@@ -436,64 +436,35 @@ def editor_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
 def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
     card_kwargs = card_kwargs or {}
     is_fullscreen = card_kwargs.get("flex") is not None
-    container_props: Dict[str, Any] = {
-        "background": COLORS["bg_tertiary"],
-        "border": f"1px solid {COLORS['border']}",
-        "border_radius": "8px",
-        "width": "100%",
-        "overflow": "hidden",
+    panel_height = "100%" if is_fullscreen else LOAD_VIEW_HEIGHT
+    viewer_props: Dict[str, Any] = {
         "display": "flex",
         "flex_direction": "column",
-        "flex": "1 1 auto",
-        "min_height": LOAD_VIEW_HEIGHT,
-    }
-    stack_props: Dict[str, Any] = {
         "gap": "12px",
         "width": "100%",
-        "flex": "1 1 auto",
-        "min_height": "0" if is_fullscreen else LOAD_VIEW_HEIGHT,
-    }
-    code_block_kwargs: Dict[str, Any] = {
-        "language": "python",
-        "wrap_lines": True,
-        "width": "100%",
-        "overflow_y": "auto",
-        "background": COLORS["bg_tertiary"],
-        "font_size": "14px",
-        "padding": "12px",
-        "flex": "1 1 auto",
     }
     if is_fullscreen:
-        container_props.update(
+        viewer_props.update(
             {
+                "flex": "1 1 auto",
                 "min_height": "0",
-                "height": "100%",
-                "max_height": "100%",
             }
         )
-        stack_props.update(
-            {
-                "min_height": "0",
-                "height": "100%",
-                "max_height": "100%",
-            }
-        )
-        code_block_kwargs["style"] = {
-            "height": "100%",
-            "boxSizing": "border-box",
-        }
     else:
-        container_props.update(
+        viewer_props.update(
             {
-                "max_height": LOAD_VIEW_HEIGHT,
+                "height": panel_height,
+                "min_height": panel_height,
+                "max_height": panel_height,
             }
         )
-        code_block_kwargs.update(
-            {
-                "min_height": LOAD_VIEW_HEIGHT,
-                "max_height": LOAD_VIEW_HEIGHT,
-            }
-        )
+
+    code_box_props: Dict[str, Any] = {
+        "flex": "1 1 auto",
+        "width": "100%",
+        "overflow": "auto",
+        "min_height": "0",
+    }
 
     return card(
         section_header(
@@ -535,7 +506,7 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
                 border=f"1px dashed {COLORS['border']}",
                 border_radius="8px",
             ),
-            rx.vstack(
+            rx.box(
                 rx.hstack(
                     rx.text(
                         rx.cond(
@@ -571,11 +542,18 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
                                 PlaygroundState.loaded_contract_code,
                             ),
                         ),
-                        **code_block_kwargs,
+                        language="python",
+                        font_size=12,
+                        wrap_lines=True,
+                        width="100%",
+                        style={
+                            "height": "95%",
+                            "margin": "0",
+                        },
                     ),
-                    **container_props,
+                    **code_box_props,
                 ),
-                **stack_props,
+                **viewer_props,
             ),
         ),
         **card_kwargs,

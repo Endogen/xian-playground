@@ -444,14 +444,37 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
         "overflow": "hidden",
         "display": "flex",
         "flex_direction": "column",
-        "flex": "1 1 auto",
-        "min_height": LOAD_VIEW_HEIGHT,
+    }
+    stack_props: Dict[str, Any] = {
+        "gap": "12px",
+        "width": "100%",
     }
     if is_fullscreen:
         container_props.update(
             {
+                "flex": "1 1 auto",
                 "min_height": "0",
                 "max_height": "50vh",
+            }
+        )
+        stack_props.update(
+            {
+                "flex": "1 1 auto",
+                "min_height": "0",
+            }
+        )
+    else:
+        container_props.update(
+            {
+                "height": LOAD_VIEW_HEIGHT,
+                "max_height": LOAD_VIEW_HEIGHT,
+                "flex": "0 0 auto",
+            }
+        )
+        stack_props.update(
+            {
+                "height": LOAD_VIEW_HEIGHT,
+                "flex": "0 0 auto",
             }
         )
 
@@ -546,10 +569,7 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
                     ),
                     **container_props,
                 ),
-                gap="12px",
-                width="100%",
-                flex="1 1 auto",
-                min_height="0" if is_fullscreen else LOAD_VIEW_HEIGHT,
+                **stack_props,
             ),
         ),
         **card_kwargs,

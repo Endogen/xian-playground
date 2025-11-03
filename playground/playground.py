@@ -268,7 +268,7 @@ def environment_field_row(info: dict) -> rx.Component:
 
 EDITOR_HEIGHT = "320px"
 STATE_HEIGHT = "360px"
-LOAD_VIEW_HEIGHT = "360px"
+LOAD_VIEW_HEIGHT = "378px"
 
 
 def expert_section() -> rx.Component:

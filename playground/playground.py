@@ -268,6 +268,7 @@ def environment_field_row(info: dict) -> rx.Component:
 
 EDITOR_HEIGHT = "320px"
 STATE_HEIGHT = "360px"
+LOAD_VIEW_HEIGHT = "360px"
 
 
 def expert_section() -> rx.Component:
@@ -435,6 +436,25 @@ def editor_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
 def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
     card_kwargs = card_kwargs or {}
     is_fullscreen = card_kwargs.get("flex") is not None
+    container_props: Dict[str, Any] = {
+        "background": COLORS["bg_tertiary"],
+        "border": f"1px solid {COLORS['border']}",
+        "border_radius": "8px",
+        "width": "100%",
+        "overflow": "hidden",
+        "display": "flex",
+        "flex_direction": "column",
+        "flex": "1 1 auto",
+        "min_height": LOAD_VIEW_HEIGHT,
+    }
+    if is_fullscreen:
+        container_props.update(
+            {
+                "min_height": "0",
+                "max_height": "50vh",
+            }
+        )
+
     return card(
         section_header(
             "Load Contract",
@@ -514,29 +534,22 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
                         language="python",
                         wrap_lines=True,
                         width="100%",
-                        min_height="360px" if not is_fullscreen else None,
-                        max_height="520px" if not is_fullscreen else None,
                         overflow_y="auto",
                         background=COLORS["bg_tertiary"],
                         font_size="14px",
-                        style={"height": "100%"} if is_fullscreen else None,
+                        padding="12px",
+                        flex="1 1 auto",
+                        style={
+                            "height": "100%",
+                            "boxSizing": "border-box",
+                        },
                     ),
-                    background=COLORS["bg_tertiary"],
-                    border=f"1px solid {COLORS['border']}",
-                    border_radius="8px",
-                    padding="12px",
-                    width="100%",
-                    max_height="50vh" if is_fullscreen else "360px",
-                    overflow="auto",
-                    flex="1 1 auto" if is_fullscreen else None,
-                    min_height="0" if is_fullscreen else None,
-                    display="flex" if is_fullscreen else None,
-                    flex_direction="column" if is_fullscreen else None,
+                    **container_props,
                 ),
                 gap="12px",
                 width="100%",
-                flex="1 1 auto" if is_fullscreen else None,
-                min_height="0" if is_fullscreen else None,
+                flex="1 1 auto",
+                min_height="0" if is_fullscreen else LOAD_VIEW_HEIGHT,
             ),
         ),
         **card_kwargs,

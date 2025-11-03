@@ -201,6 +201,8 @@ class PlaygroundState(rx.State):
             return
         required = self.function_required_params.get(self.function_name, [])
         if not required:
+            if force or self.kwargs_input.strip() != "{}":
+                self.kwargs_input = "{}"
             return
         # Only seed the editor if it is still empty or in the default form.
         current = self.kwargs_input.strip()

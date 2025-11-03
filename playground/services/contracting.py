@@ -302,6 +302,16 @@ class ContractingService:
                 if not isinstance(entries, dict):
                     raise ValueError(f"State for '{contract}' must be an object mapping keys to values.")
 
+                existing_keys: set[str] = set()
+                contract_file = self._driver.contract_state / contract
+                if contract_file.exists():
+                    existing_keys = {
+                        key
+                        for key in hdf5.get_all_keys_from_file(str(contract_file))
+                        if isinstance(key, str) and not key.startswith("__")
+                    }
+
+                provided_keys: set[str] = set()
                 for key, value in entries.items():
                     if not isinstance(key, str):
                         raise ValueError(f"State keys for '{contract}' must be strings.")
@@ -312,6 +322,12 @@ class ContractingService:
                         self._driver.delete(full_key)
                     else:
                         self._driver.set(full_key, value)
+                    provided_keys.add(key)
+
+                missing_keys = existing_keys - provided_keys
+                for key in missing_keys:
+                    full_key = contract if key == "" else f"{contract}.{key}"
+                    self._driver.delete(full_key)
 
             self._driver.commit()
 

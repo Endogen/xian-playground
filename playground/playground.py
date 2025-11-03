@@ -444,15 +444,28 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
         "overflow": "hidden",
         "display": "flex",
         "flex_direction": "column",
+        "flex": "1 1 auto",
+        "min_height": LOAD_VIEW_HEIGHT,
     }
     stack_props: Dict[str, Any] = {
         "gap": "12px",
         "width": "100%",
+        "flex": "1 1 auto",
+        "min_height": "0" if is_fullscreen else LOAD_VIEW_HEIGHT,
+    }
+    code_block_kwargs: Dict[str, Any] = {
+        "language": "python",
+        "wrap_lines": True,
+        "width": "100%",
+        "overflow_y": "auto",
+        "background": COLORS["bg_tertiary"],
+        "font_size": "14px",
+        "padding": "12px",
+        "flex": "1 1 auto",
     }
     if is_fullscreen:
         container_props.update(
             {
-                "flex": "1 1 auto",
                 "min_height": "0",
                 "height": "100%",
                 "max_height": "100%",
@@ -460,22 +473,25 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
         )
         stack_props.update(
             {
-                "flex": "1 1 auto",
                 "min_height": "0",
                 "height": "100%",
+                "max_height": "100%",
             }
         )
+        code_block_kwargs["style"] = {
+            "height": "100%",
+            "boxSizing": "border-box",
+        }
     else:
         container_props.update(
             {
-                "height": LOAD_VIEW_HEIGHT,
                 "max_height": LOAD_VIEW_HEIGHT,
-                "flex": "0 0 auto",
             }
         )
-        stack_props.update(
+        code_block_kwargs.update(
             {
-                "flex": "0 0 auto",
+                "min_height": LOAD_VIEW_HEIGHT,
+                "max_height": LOAD_VIEW_HEIGHT,
             }
         )
 
@@ -555,18 +571,7 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
                                 PlaygroundState.loaded_contract_code,
                             ),
                         ),
-                        language="python",
-                        wrap_lines=True,
-                        width="100%",
-                        overflow_y="auto",
-                        background=COLORS["bg_tertiary"],
-                        font_size="14px",
-                        padding="12px",
-                        flex="1 1 auto",
-                        style={
-                            "height": "100%",
-                            "boxSizing": "border-box",
-                        },
+                        **code_block_kwargs,
                     ),
                     **container_props,
                 ),

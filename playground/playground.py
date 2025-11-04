@@ -156,7 +156,7 @@ def section_header(
     )
 
 
-def code_viewer(value: str, language: str, empty_message: str) -> rx.Component:
+def code_viewer(value: str, language: str, empty_message: str, font_size: str = "14px") -> rx.Component:
     return rx.cond(
         value == "",
         rx.text(
@@ -173,6 +173,7 @@ def code_viewer(value: str, language: str, empty_message: str) -> rx.Component:
             style={
                 "height": "100%",
                 "margin": "0",
+                "fontSize": font_size,
             },
         ),
     )
@@ -658,11 +659,13 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
                             PlaygroundState.loaded_contract_decompiled,
                             "python",
                             "# Decompiled source unavailable.",
+                            font_size="12px",
                         ),
                         code_viewer(
                             PlaygroundState.loaded_contract_code,
                             "python",
                             "# Source unavailable.",
+                            font_size="12px",
                         ),
                     ),
                     **code_box_props,
@@ -773,6 +776,7 @@ def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component
                     PlaygroundState.run_result,
                     "json",
                     "Awaiting execution...",
+                    font_size="12px",
                 ),
                 **result_box_props,
             ),
@@ -896,6 +900,7 @@ def state_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
                         PlaygroundState.state_dump,
                         "json",
                         "State is empty.",
+                        font_size="12px",
                     ),
                     **inner_box_props,
                 ),

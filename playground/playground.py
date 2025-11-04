@@ -687,32 +687,27 @@ def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component
         "on_change": PlaygroundState.update_kwargs,
         "font_family": "'Fira Code', 'Monaco', 'Courier New', monospace",
         "spell_check": False,
-        "min_height": "0" if is_fullscreen else "120px",
+        "min_height": "120px",
+        "height": "100%",
     }
     textarea_container_props: Dict[str, Any] = {
         "width": "100%",
-        "flex": "1 1 auto" if is_fullscreen else None,
-        "min_height": "0" if is_fullscreen else None,
-        "max_height": "50vh" if is_fullscreen else "360px",
-        "overflow": "auto",
+        "flex": "1 1 auto",
+        "min_height": "120px",
+        "overflow": "hidden",
+        "display": "flex",
+        "flex_direction": "column",
     }
-    if is_fullscreen:
-        textarea_kwargs["height"] = "100%"
-    textarea_box = rx.box(
-        styled_text_area(**textarea_kwargs),
-        **textarea_container_props,
-    )
 
     base_result_height = "240px"
     result_height = "50vh" if is_fullscreen else base_result_height
     result_panel_props: Dict[str, Any] = {
-        "display": "flex",
+        "display": rx.cond(PlaygroundState.run_result == "", "none", "flex"),
         "flex_direction": "column",
         "gap": "12px",
         "width": "100%",
-        "marginTop": "auto",
-        "height": rx.cond(PlaygroundState.run_result == "", "auto", result_height),
-        "min_height": rx.cond(PlaygroundState.run_result == "", "0", result_height),
+        "height": result_height,
+        "min_height": result_height,
         "max_height": result_height,
         "flex": "0 0 auto",
     }
@@ -748,7 +743,10 @@ def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component
             placeholder="Select a function",
             on_change=PlaygroundState.change_selected_function,
         ),
-        textarea_box,
+        rx.box(
+            styled_text_area(**textarea_kwargs),
+            **textarea_container_props,
+        ),
         styled_button(
             "Run Function",
             on_click=PlaygroundState.run_contract,

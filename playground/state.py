@@ -125,13 +125,9 @@ class PlaygroundState(rx.State):
             if field in snapshot:
                 setattr(self, field, snapshot[field])
 
-    def _persist_ui_state(self, force: bool = False, include_code: bool = False):
+    def _save_session(self, include_code: bool = False):
         if not self.session_id:
             return
-        now = time.time()
-        if not force and (now - self._last_ui_snapshot_ts) < 1.0:
-            return
-        self._last_ui_snapshot_ts = now
         payload = {}
         for field in SESSION_UI_FIELDS:
             if field == "code_editor":
@@ -139,6 +135,8 @@ class PlaygroundState(rx.State):
             else:
                 payload[field] = getattr(self, field)
         session_runtime.save_ui_state(self.session_id, payload)
+        if include_code:
+            self._saved_code_snapshot = self.code_editor
 
     def _require_session(self) -> str | None:
         if not self.session_id:
@@ -205,8 +203,7 @@ class PlaygroundState(rx.State):
         session_id = self._require_session()
         if not session_id:
             return []
-        self._saved_code_snapshot = self.code_editor
-        self._persist_ui_state(force=True, include_code=True)
+        self._save_session(include_code=True)
         return [rx.toast.success("Draft saved.")]
 
     def update_code(self, value: str):
@@ -215,24 +212,20 @@ class PlaygroundState(rx.State):
 
     def update_contract_name(self, value: str):
         self.contract_name = value
-        self._persist_ui_state()
 
     def update_kwargs(self, value: str):
         self.kwargs_input = value
-        self._persist_ui_state()
 
     def change_selected_contract(self, value: str):
         if value != self.selected_contract:
             self.selected_contract = value
             self.kwargs_input = DEFAULT_KWARGS_INPUT
-            self._persist_ui_state()
         return [type(self).refresh_functions]
 
     def change_selected_function(self, value: str):
         self.function_name = value
         self.run_result = ""
         self.prefill_kwargs_for_current_function(force=True)
-        self._persist_ui_state()
 
     def refresh_contracts(self):
         session_id = self._require_session()
@@ -258,7 +251,6 @@ class PlaygroundState(rx.State):
         if not self.load_selected_contract or self.load_selected_contract not in contracts:
             self.load_selected_contract = contracts[0]
 
-        self._persist_ui_state()
         return [type(self).refresh_functions, type(self).refresh_loaded_contract]
 
     def refresh_functions(self):
@@ -292,7 +284,6 @@ class PlaygroundState(rx.State):
 
     def change_loaded_contract(self, value: str):
         self.load_selected_contract = value
-        self._persist_ui_state()
         return [type(self).refresh_loaded_contract]
 
     def refresh_loaded_contract(self):
@@ -317,14 +308,12 @@ class PlaygroundState(rx.State):
 
     def toggle_load_view(self):
         self.load_view_decompiled = not self.load_view_decompiled
-        self._persist_ui_state()
 
     def toggle_panel(self, panel_id: str):
         target = (panel_id or "").strip()
         if not target:
             return
         self.expanded_panel = "" if self.expanded_panel == target else target
-        self._persist_ui_state()
 
     def prefill_kwargs_for_current_function(self, force: bool = False):
         if not self.function_name:
@@ -339,7 +328,6 @@ class PlaygroundState(rx.State):
         if force or current in ("", DEFAULT_KWARGS_INPUT):
             payload = {name: "" for name in required}
             self.kwargs_input = json.dumps(payload, indent=2)
-            self._persist_ui_state()
 
     def confirm_clear_state(self):
         session_id = self._require_session()
@@ -375,7 +363,7 @@ class PlaygroundState(rx.State):
             key: stringify_environment_value(env.get(key))
             for key in ENVIRONMENT_FIELD_KEYS
         }
-        self._persist_ui_state(force=True, include_code=True)
+        self._save_session(include_code=True)
 
         return [
             rx.toast.success("All contracts and state cleared."),
@@ -429,6 +417,7 @@ class PlaygroundState(rx.State):
             session_runtime.apply_state_snapshot(session_id, payload)
         except Exception as exc:
             return [rx.toast.error(f"Failed to import state: {exc}")]
+        self._save_session()
 
         return [
             rx.toast.success("State imported."),
@@ -464,7 +453,7 @@ class PlaygroundState(rx.State):
             self.expanded_panel = ""
 
         self.run_result = ""
-        self._persist_ui_state(force=True)
+        self._save_session()
 
         return [
             rx.toast.success(f"Contract '{target}' removed."),
@@ -507,8 +496,7 @@ class PlaygroundState(rx.State):
         self.selected_contract = self.contract_name
         self.load_selected_contract = self.contract_name
         self.kwargs_input = DEFAULT_KWARGS_INPUT
-        self._saved_code_snapshot = self.code_editor
-        self._persist_ui_state(force=True, include_code=True)
+        self._save_session(include_code=True)
 
         events = [
             rx.toast.success(self.deploy_message),
@@ -523,12 +511,10 @@ class PlaygroundState(rx.State):
         if isinstance(value, dict):
             value = value.get("value", False)
         self.show_internal_state = bool(value)
-        self._persist_ui_state()
         return [type(self).refresh_state]
 
     def toggle_show_internal_state(self):
         self.show_internal_state = not self.show_internal_state
-        self._persist_ui_state()
         return [type(self).refresh_state]
 
     def edit_environment_value(self, key: str, value):
@@ -568,6 +554,7 @@ class PlaygroundState(rx.State):
 
         self.expert_is_error = False
         self.expert_message = message
+        self._save_session()
         return [toast, type(self).refresh_environment]
 
     def reset_environment_value(self, key):
@@ -582,6 +569,7 @@ class PlaygroundState(rx.State):
         self.environment_editor[key] = DEFAULT_ENVIRONMENT.get(key, "")
         self.expert_is_error = False
         self.expert_message = f"Environment['{key}'] cleared."
+        self._save_session()
         return [rx.toast.info(self.expert_message), type(self).refresh_environment]
 
     def update_state_editor(self, value: str):
@@ -613,6 +601,7 @@ class PlaygroundState(rx.State):
 
         self.state_is_editing = False
         self.refresh_state()
+        self._save_session()
         return [rx.toast.success("State updated.")]
 
     def lint_contract(self):

@@ -3,10 +3,15 @@ from __future__ import annotations
 from typing import Any, Dict
 
 import reflex as rx
+from reflex.components.radix.themes.components.badge import Badge
+from reflex.config import get_config
+from starlette.requests import Request
+from starlette.responses import RedirectResponse
+from urllib.parse import unquote
 
 from .components import MonacoEditor
-from .services import ENVIRONMENT_FIELDS
-from reflex.components.radix.themes.components.badge import Badge
+from .services import ENVIRONMENT_FIELDS, SessionRepository, session_runtime
+from .session_middleware import SessionCookieMiddleware, issue_session_cookie
 from .state import PlaygroundState
 
 
@@ -203,6 +208,74 @@ def styled_text_area(**kwargs) -> rx.Component:
         },
     }
     return rx.text_area(**{**default_style, **kwargs})
+
+
+def session_panel() -> rx.Component:
+    """Session controls and resume form."""
+    return card(
+        section_header(
+            "Session",
+            "Every browser session gets its own isolated runtime. Copy the ID to save it or resume one you've stored.",
+            icon="shield",
+        ),
+        rx.flex(
+            rx.vstack(
+                rx.text(
+                    "Current session ID",
+                    color=COLORS["text_secondary"],
+                    size="1",
+                ),
+                rx.code(
+                    rx.cond(
+                        PlaygroundState.session_id != "",
+                        PlaygroundState.session_id,
+                        "Pending...",
+                    ),
+                    color=COLORS["accent_cyan"],
+                    font_size="14px",
+                ),
+                align_items="start",
+                spacing="1",
+            ),
+            rx.spacer(),
+            styled_button(
+                "Copy ID",
+                color_scheme="cyan",
+                on_click=PlaygroundState.copy_session_id,
+            ),
+            styled_button(
+                "New Session",
+                color_scheme="purple",
+                on_click=PlaygroundState.start_new_session,
+            ),
+            align_items="center",
+            width="100%",
+            gap="12px",
+        ),
+        rx.hstack(
+            styled_input(
+                placeholder="Enter an existing session ID",
+                value=PlaygroundState.resume_session_input,
+                on_change=PlaygroundState.update_resume_session_input,
+            ),
+            styled_button(
+                "Resume",
+                color_scheme="blue",
+                on_click=PlaygroundState.resume_session,
+            ),
+            spacing="3",
+            width="100%",
+        ),
+        rx.cond(
+            PlaygroundState.session_error != "",
+            rx.text(
+                PlaygroundState.session_error,
+                color=COLORS["warning"],
+                size="1",
+            ),
+            rx.fragment(),
+        ),
+    )
 
 
 def styled_button(text: str, color_scheme: str = "blue", **kwargs) -> rx.Component:
@@ -1004,6 +1077,7 @@ def index() -> rx.Component:
             ),
             rx.box(
                 rx.vstack(
+                    session_panel(),
                     # Main content grid - Editor and Execution side by side
                     rx.box(
                         rx.grid(
@@ -1071,3 +1145,39 @@ app.add_page(
     title="Xian Contracting Playground",
     on_load=PlaygroundState.on_load,
 )
+
+app._api.add_middleware(SessionCookieMiddleware)
+
+
+def _frontend_redirect_target(request: Request) -> str:
+    next_param = request.query_params.get("next")
+    if next_param:
+        return unquote(next_param)
+    referer = request.headers.get("referer")
+    if referer:
+        return referer
+    deploy = get_config().deploy_url
+    if deploy:
+        return deploy
+    return "/"
+
+
+@app._api.route("/sessions/new", methods=["GET"])
+async def create_session_route(request: Request):
+    metadata = session_runtime.create_session()
+    response = RedirectResponse(_frontend_redirect_target(request))
+    issue_session_cookie(response, metadata.session_id)
+    return response
+
+
+@app._api.route("/sessions/{session_id}", methods=["GET"])
+async def resume_session_route(request: Request):
+    raw = request.path_params.get("session_id", "").lower()
+    if not SessionRepository.is_valid_session_id(raw):
+        return RedirectResponse("/sessions/new")
+    if not session_runtime.session_exists(raw):
+        return RedirectResponse("/sessions/new")
+    metadata = session_runtime.ensure_exists(raw)
+    response = RedirectResponse(_frontend_redirect_target(request))
+    issue_session_cookie(response, metadata.session_id)
+    return response

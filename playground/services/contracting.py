@@ -17,6 +17,8 @@ from contracting.stdlib.bridge.decimal import ContractingDecimal
 from contracting.stdlib.bridge.time import Datetime
 from xian_py.decompiler import ContractDecompiler
 
+from .environment import stringify_environment_value
+
 
 DEFAULT_SIGNER = "demo"
 DEFAULT_ENVIRONMENT: Dict[str, str] = {
@@ -172,6 +174,28 @@ class ContractingService:
             }
             env['signer'] = self._client.signer
             return env
+
+    def snapshot_environment(self) -> Dict[str, str]:
+        """Return a JSON-friendly snapshot of the current environment."""
+        env = self.get_environment()
+        return {
+            key: stringify_environment_value(env.get(key))
+            for key in _ENVIRONMENT_LOOKUP
+        }
+
+    def hydrate_environment(self, snapshot: Dict[str, Any] | None) -> None:
+        """Restore signer/environment overrides from a serialized snapshot."""
+        if not snapshot:
+            return
+        for key in ENVIRONMENT_FIELDS:
+            name = key["key"]
+            value = snapshot.get(name)
+            if value is None or str(value).strip() == "":
+                continue
+            if name == "signer":
+                self.set_signer(str(value))
+            else:
+                self.set_environment_var(name, value)
 
     def set_environment_var(self, key: str, value: str) -> Any:
         clean_key = (key or "").strip()
@@ -457,10 +481,10 @@ class ContractingService:
         with self._lock:
             self._driver.flush_full()
             self._driver = Driver(storage_home=self._storage_home)
-            self._client = ContractingService._create_client(driver=self._driver)
-            self._environment = self._client.environment
-            self._apply_default_environment()
-            self._prune_environment()
+        self._client = ContractingService._create_client(driver=self._driver)
+        self._environment = self._client.environment
+        self._apply_default_environment()
+        self._prune_environment()
 
     @staticmethod
     def _parse_exports(source: str) -> List[ContractExportInfo]:
@@ -521,5 +545,3 @@ class ContractingService:
         except Exception:
             return source
 
-
-contracting_service = ContractingService()

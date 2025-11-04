@@ -151,8 +151,7 @@ def section_header(
     )
 
 
-def monospace_viewer(value, empty_message: str) -> rx.Component:
-    """Standardized viewer for code/state outputs."""
+def code_viewer(value: str, language: str, empty_message: str) -> rx.Component:
     return rx.cond(
         value == "",
         rx.text(
@@ -161,15 +160,15 @@ def monospace_viewer(value, empty_message: str) -> rx.Component:
             font_style="italic",
             font_size="14px",
         ),
-        rx.box(
+        rx.code_block(
             value,
-            font_family="'Fira Code', 'Monaco', 'Courier New', monospace",
-            color=COLORS["text_primary"],
-            font_size="14px",
-            white_space="pre-wrap",
+            language=language,
+            wrap_lines=True,
             width="100%",
-            height="100%",
-            overflow="auto",
+            style={
+                "height": "100%",
+                "margin": "0",
+            },
         ),
     )
 
@@ -578,12 +577,14 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
                 rx.box(
                     rx.cond(
                         PlaygroundState.load_view_decompiled,
-                        monospace_viewer(
+                        code_viewer(
                             PlaygroundState.loaded_contract_decompiled,
+                            "python",
                             "# Decompiled source unavailable.",
                         ),
-                        monospace_viewer(
+                        code_viewer(
                             PlaygroundState.loaded_contract_code,
+                            "python",
                             "# Source unavailable.",
                         ),
                     ),
@@ -691,8 +692,9 @@ def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component
                 gap="8px",
             ),
             rx.box(
-                monospace_viewer(
+                code_viewer(
                     PlaygroundState.run_result,
+                    "json",
                     "Awaiting execution...",
                 ),
                 **result_box_props,
@@ -813,8 +815,9 @@ def state_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
             ),
             rx.box(
                 rx.box(
-                    monospace_viewer(
+                    code_viewer(
                         PlaygroundState.state_dump,
+                        "json",
                         "State is empty.",
                     ),
                     **inner_box_props,

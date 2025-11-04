@@ -218,13 +218,8 @@ def session_panel() -> rx.Component:
             "Every browser session gets its own isolated runtime. Copy the ID to save it or resume one you've stored.",
             icon="shield",
         ),
-        rx.flex(
-            rx.vstack(
-                rx.text(
-                    "Current session ID",
-                    color=COLORS["text_secondary"],
-                    size="1",
-                ),
+        rx.vstack(
+            rx.hstack(
                 rx.code(
                     rx.cond(
                         PlaygroundState.session_id != "",
@@ -232,48 +227,52 @@ def session_panel() -> rx.Component:
                         "Pending...",
                     ),
                     color=COLORS["accent_cyan"],
-                    font_size="14px",
+                    font_size="13px",
+                    font_family="'Fira Code', 'Monaco', 'Courier New', monospace",
+                    padding="6px 10px",
+                    background=COLORS["bg_tertiary"],
+                    border_radius="6px",
+                    letter_spacing="-0.01em",
                 ),
-                align_items="start",
-                spacing="1",
+                styled_button(
+                    "Copy ID",
+                    color_scheme="cyan",
+                    on_click=PlaygroundState.copy_session_id,
+                ),
+                styled_input(
+                    placeholder="Enter an existing session ID (UUID4 format)",
+                    value=PlaygroundState.resume_session_input,
+                    on_change=PlaygroundState.update_resume_session_input,
+                    font_family="'Fira Code', 'Monaco', 'Courier New', monospace",
+                    font_size="13px",
+                    flex="1",
+                    min_width="320px",
+                ),
+                styled_button(
+                    "Resume",
+                    color_scheme="blue",
+                    on_click=PlaygroundState.resume_session,
+                ),
+                styled_button(
+                    "New Session",
+                    color_scheme="purple",
+                    on_click=PlaygroundState.start_new_session,
+                ),
+                align_items="center",
+                width="100%",
+                gap="12px",
             ),
-            rx.spacer(),
-            styled_button(
-                "Copy ID",
-                color_scheme="cyan",
-                on_click=PlaygroundState.copy_session_id,
-            ),
-            styled_button(
-                "New Session",
-                color_scheme="purple",
-                on_click=PlaygroundState.start_new_session,
-            ),
-            align_items="center",
-            width="100%",
-            gap="12px",
-        ),
-        rx.hstack(
-            styled_input(
-                placeholder="Enter an existing session ID",
-                value=PlaygroundState.resume_session_input,
-                on_change=PlaygroundState.update_resume_session_input,
-            ),
-            styled_button(
-                "Resume",
-                color_scheme="blue",
-                on_click=PlaygroundState.resume_session,
+            rx.cond(
+                PlaygroundState.session_error != "",
+                rx.text(
+                    PlaygroundState.session_error,
+                    color=COLORS["warning"],
+                    size="1",
+                ),
+                rx.fragment(),
             ),
             spacing="3",
             width="100%",
-        ),
-        rx.cond(
-            PlaygroundState.session_error != "",
-            rx.text(
-                PlaygroundState.session_error,
-                color=COLORS["warning"],
-                size="1",
-            ),
-            rx.fragment(),
         ),
     )
 

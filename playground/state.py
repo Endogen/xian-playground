@@ -350,6 +350,7 @@ class PlaygroundState(rx.State):
         self.deploy_message = f"Contract '{self.contract_name}' deployed successfully."
         self.selected_contract = self.contract_name
         self.load_selected_contract = self.contract_name
+        self.kwargs_input = "{}"
 
         events = [
             rx.toast.success(self.deploy_message),

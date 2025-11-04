@@ -87,15 +87,33 @@ def section_header(
     description: str = "",
     panel_id: str | None = None,
     trailing: rx.Component | None = None,
+    icon: str | None = None,
 ) -> rx.Component:
     """Section header with optional fullscreen icon and trailing controls."""
 
-    title_row = rx.hstack(
+    heading_contents = []
+    if icon:
+        heading_contents.append(
+            rx.icon(
+                tag=icon,
+                size=18,
+                color=COLORS["accent_cyan"],
+            )
+        )
+    heading_contents.append(
         rx.heading(
             title,
             size="5",
             color=COLORS["text_primary"],
             font_weight="600",
+        )
+    )
+
+    title_row = rx.hstack(
+        rx.hstack(
+            *heading_contents,
+            align_items="center",
+            gap="8px",
         ),
         rx.spacer(),
         rx.cond(
@@ -361,6 +379,7 @@ def editor_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
             "Write Contract",
             "Write a Python smart contract, pick a unique name, and deploy it into the local sandbox.",
             panel_id="write",
+            icon="file-pen",
         ),
         styled_input(
             placeholder="Contract name",
@@ -471,6 +490,7 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
             "Load Contract",
             "Inspect deployed contract source code.",
             panel_id="load",
+            icon="folder-open",
         ),
         rx.hstack(
             rx.box(
@@ -586,29 +606,38 @@ def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component
         **textarea_container_props,
     )
 
-    result_container_props: Dict[str, Any] = {
+    base_result_height = "240px"
+    result_height = "50vh" if is_fullscreen else base_result_height
+    result_panel_props: Dict[str, Any] = {
+        "display": "flex",
+        "flex_direction": "column",
+        "gap": "12px",
+        "width": "100%",
+        "margin_top": "auto",
+        "height": result_height,
+        "min_height": result_height,
+        "max_height": result_height,
+        "flex": "0 0 auto",
+    }
+    result_box_props: Dict[str, Any] = {
+        "flex": "1 1 auto",
+        "width": "100%",
+        "overflow": "auto",
+        "min_height": "0",
         "background": COLORS["bg_tertiary"],
         "border": f"1px solid {COLORS['border']}",
-        "border_radius": "8px",
+        "borderRadius": "8px",
         "padding": "12px",
-        "overflow": "auto",
-        "width": "100%",
+        "justify_content": "center",
+        "align_items": "flex-start",
     }
-    if is_fullscreen:
-        result_container_props.update(
-            {
-                "max_height": "50vh",
-                "flex": "0 0 auto",
-            }
-        )
-    else:
-        result_container_props["max_height"] = "240px"
 
     return card(
         section_header(
             "Execute Contract",
             "Pick a deployed contract and exported function to run.",
             panel_id="execute",
+            icon="play",
         ),
         styled_select(
             items=PlaygroundState.deployed_contracts,
@@ -633,25 +662,41 @@ def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component
             width="100%",
             background=COLORS["border"],
         ),
-        rx.heading(
-            "Result",
-            size="3",
-            color=COLORS["text_primary"],
-            font_weight="600",
-        ),
         rx.box(
-            rx.code_block(
+            rx.hstack(
+                rx.icon(tag="terminal", size=18, color=COLORS["accent_cyan"]),
+                rx.heading(
+                    "Result",
+                    size="3",
+                    color=COLORS["text_primary"],
+                    font_weight="600",
+                ),
+                align_items="center",
+                gap="8px",
+            ),
+            rx.box(
                 rx.cond(
                     PlaygroundState.run_result == "",
-                    "Awaiting execution...",
-                    PlaygroundState.run_result,
+                    rx.text(
+                        "Awaiting execution...",
+                        color=COLORS["text_secondary"],
+                        font_style="italic",
+                        font_size="14px",
+                    ),
+                    rx.box(
+                        PlaygroundState.run_result,
+                        font_family="'Fira Code', 'Monaco', 'Courier New', monospace",
+                        color=COLORS["text_primary"],
+                        font_size="14px",
+                        white_space="pre-wrap",
+                        width="100%",
+                        height="100%",
+                        overflow="auto",
+                    ),
                 ),
-                language="json",
-                wrap_lines=True,
-                width="100%",
-                background=COLORS["bg_tertiary"],
+                **result_box_props,
             ),
-            **result_container_props,
+            **result_panel_props,
         ),
         **card_kwargs,
     )
@@ -723,6 +768,7 @@ def state_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
             "Contract State",
             "Live snapshot of every key stored in the driver. Refreshes after deployments and executions.",
             panel_id="state",
+            icon="database",
         ),
         rx.hstack(
             rx.checkbox(

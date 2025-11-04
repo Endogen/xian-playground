@@ -104,7 +104,9 @@ class SessionRuntimeManager:
             service.remove_contract(name)
 
     def reset_state(self, session_id: str) -> SessionMetadata:
-        service = self._reinitialize_service(session_id)
+        service = self._get_service(session_id)
+        with self._runtime_section():
+            service.reset_state()
         metadata = SessionMetadata.new(session_id)
         metadata.environment = service.snapshot_environment()
         metadata.updated_at = metadata.created_at

@@ -151,6 +151,28 @@ def section_header(
     )
 
 
+def monospace_viewer(value, empty_message: str) -> rx.Component:
+    """Standardized viewer for code/state outputs."""
+    return rx.cond(
+        value == "",
+        rx.text(
+            empty_message,
+            color=COLORS["text_secondary"],
+            font_style="italic",
+            font_size="14px",
+        ),
+        rx.box(
+            value,
+            font_family="'Fira Code', 'Monaco', 'Courier New', monospace",
+            color=COLORS["text_primary"],
+            font_size="14px",
+            white_space="pre-wrap",
+            width="100%",
+            height="100%",
+            overflow="auto",
+        ),
+    )
+
 def styled_input(**kwargs) -> rx.Component:
     """Styled input field with dark theme."""
     default_style = {
@@ -483,7 +505,13 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
         "width": "100%",
         "overflow": "auto",
         "min_height": "0",
+        "background": COLORS["bg_tertiary"],
+        "border": f"1px solid {COLORS['border']}",
+        "borderRadius": "8px",
+        "padding": "12px",
     }
+    if not is_fullscreen:
+        code_box_props["height"] = "100%"
 
     return card(
         section_header(
@@ -548,28 +576,16 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
                     width="100%",
                 ),
                 rx.box(
-                    rx.code_block(
-                        rx.cond(
-                            PlaygroundState.load_view_decompiled,
-                            rx.cond(
-                                PlaygroundState.loaded_contract_decompiled == "",
-                                "# Decompiled source unavailable.",
-                                PlaygroundState.loaded_contract_decompiled,
-                            ),
-                            rx.cond(
-                                PlaygroundState.loaded_contract_code == "",
-                                "# Source unavailable.",
-                                PlaygroundState.loaded_contract_code,
-                            ),
+                    rx.cond(
+                        PlaygroundState.load_view_decompiled,
+                        monospace_viewer(
+                            PlaygroundState.loaded_contract_decompiled,
+                            "# Decompiled source unavailable.",
                         ),
-                        language="python",
-                        font_size=12,
-                        wrap_lines=True,
-                        width="100%",
-                        style={
-                            "height": "95%",
-                            "margin": "0",
-                        },
+                        monospace_viewer(
+                            PlaygroundState.loaded_contract_code,
+                            "# Source unavailable.",
+                        ),
                     ),
                     **code_box_props,
                 ),
@@ -613,9 +629,9 @@ def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component
         "flex_direction": "column",
         "gap": "12px",
         "width": "100%",
-        "margin_top": "auto",
-        "height": result_height,
-        "min_height": result_height,
+        "marginTop": "auto",
+        "height": rx.cond(PlaygroundState.run_result == "", "auto", result_height),
+        "min_height": rx.cond(PlaygroundState.run_result == "", "0", result_height),
         "max_height": result_height,
         "flex": "0 0 auto",
     }
@@ -675,24 +691,9 @@ def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component
                 gap="8px",
             ),
             rx.box(
-                rx.cond(
-                    PlaygroundState.run_result == "",
-                    rx.text(
-                        "Awaiting execution...",
-                        color=COLORS["text_secondary"],
-                        font_style="italic",
-                        font_size="14px",
-                    ),
-                    rx.box(
-                        PlaygroundState.run_result,
-                        font_family="'Fira Code', 'Monaco', 'Courier New', monospace",
-                        color=COLORS["text_primary"],
-                        font_size="14px",
-                        white_space="pre-wrap",
-                        width="100%",
-                        height="100%",
-                        overflow="auto",
-                    ),
+                monospace_viewer(
+                    PlaygroundState.run_result,
+                    "Awaiting execution...",
                 ),
                 **result_box_props,
             ),
@@ -759,6 +760,10 @@ def state_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
         "width": "100%",
         "overflow": "auto",
         "min_height": "0",
+        "background": COLORS["bg_tertiary"],
+        "border": f"1px solid {COLORS['border']}",
+        "borderRadius": "8px",
+        "padding": "12px",
     }
     if not is_fullscreen:
         inner_box_props["height"] = "100%"
@@ -808,16 +813,9 @@ def state_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
             ),
             rx.box(
                 rx.box(
-                    rx.code_block(
+                    monospace_viewer(
                         PlaygroundState.state_dump,
-                        language="json",
-                        wrap_lines=True,
-                        font_size=12,
-                        width="100%",
-                        style={
-                            "height": "95%",
-                            "margin": "0",
-                        },
+                        "State is empty.",
                     ),
                     **inner_box_props,
                 ),

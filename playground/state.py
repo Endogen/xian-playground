@@ -77,6 +77,7 @@ class PlaygroundState(rx.State):
     kwargs_input: str = DEFAULT_KWARGS_INPUT
     run_result: str = ""
     state_dump: str = "{}"
+    _saved_code_snapshot: str = DEFAULT_CONTRACT
 
     def on_load(self):
         session_id = self._cookie_session_id()
@@ -91,6 +92,7 @@ class PlaygroundState(rx.State):
             return [rx.redirect(self._session_route_url("new"))]
 
         self._apply_ui_state(metadata.ui_state or {})
+        self._saved_code_snapshot = self.code_editor
         env_snapshot = session_runtime.get_environment_snapshot(session_id)
         self.environment_editor = {
             key: env_snapshot.get(key, "")
@@ -123,14 +125,19 @@ class PlaygroundState(rx.State):
             if field in snapshot:
                 setattr(self, field, snapshot[field])
 
-    def _persist_ui_state(self, force: bool = False):
+    def _persist_ui_state(self, force: bool = False, include_code: bool = False):
         if not self.session_id:
             return
         now = time.time()
         if not force and (now - self._last_ui_snapshot_ts) < 1.0:
             return
         self._last_ui_snapshot_ts = now
-        payload = {field: getattr(self, field) for field in SESSION_UI_FIELDS}
+        payload = {}
+        for field in SESSION_UI_FIELDS:
+            if field == "code_editor":
+                payload[field] = self.code_editor if include_code else self._saved_code_snapshot
+            else:
+                payload[field] = getattr(self, field)
         session_runtime.save_ui_state(self.session_id, payload)
 
     def _require_session(self) -> str | None:
@@ -194,10 +201,17 @@ class PlaygroundState(rx.State):
         self.session_error = ""
         return [rx.redirect(self._session_route_url(target))]
 
+    def save_code_draft(self):
+        session_id = self._require_session()
+        if not session_id:
+            return []
+        self._saved_code_snapshot = self.code_editor
+        self._persist_ui_state(force=True, include_code=True)
+        return [rx.toast.success("Draft saved.")]
+
     def update_code(self, value: str):
         self.code_editor = value or ""
         self.lint_results = []
-        self._persist_ui_state()
 
     def update_contract_name(self, value: str):
         self.contract_name = value
@@ -355,12 +369,13 @@ class PlaygroundState(rx.State):
         self.state_editor = "{}"
         self.lint_results = []
         self.code_editor = DEFAULT_CONTRACT
+        self._saved_code_snapshot = self.code_editor
         self.contract_name = DEFAULT_CONTRACT_NAME
         self.environment_editor = {
             key: stringify_environment_value(env.get(key))
             for key in ENVIRONMENT_FIELD_KEYS
         }
-        self._persist_ui_state(force=True)
+        self._persist_ui_state(force=True, include_code=True)
 
         return [
             rx.toast.success("All contracts and state cleared."),
@@ -492,7 +507,8 @@ class PlaygroundState(rx.State):
         self.selected_contract = self.contract_name
         self.load_selected_contract = self.contract_name
         self.kwargs_input = DEFAULT_KWARGS_INPUT
-        self._persist_ui_state(force=True)
+        self._saved_code_snapshot = self.code_editor
+        self._persist_ui_state(force=True, include_code=True)
 
         events = [
             rx.toast.success(self.deploy_message),

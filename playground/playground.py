@@ -503,6 +503,11 @@ def editor_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
             **editor_container_kwargs,
         ),
         rx.hstack(
+            styled_button(
+                "Save Draft",
+                on_click=PlaygroundState.save_code_draft,
+                color_scheme="blue",
+            ),
             rx.spacer(),
             styled_button(
                 "Deploy Contract",

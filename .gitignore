@@ -6,6 +6,7 @@ assets/external/
 *.py[cod]
 .idea
 .claude
+.env
 docs/
 AGENTS.md
 CLAUDE.md

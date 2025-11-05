@@ -699,29 +699,22 @@ def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component
         "flex_direction": "column",
     }
 
-    base_result_height = "240px"
-    result_height = "50vh" if is_fullscreen else base_result_height
     result_panel_props: Dict[str, Any] = {
         "display": rx.cond(PlaygroundState.run_result == "", "none", "flex"),
         "flex_direction": "column",
         "gap": "12px",
         "width": "100%",
-        "height": result_height,
-        "min_height": result_height,
-        "max_height": result_height,
         "flex": "0 0 auto",
+        "max_height": "50vh" if is_fullscreen else "360px",
     }
     result_box_props: Dict[str, Any] = {
-        "flex": "1 1 auto",
         "width": "100%",
         "overflow": "auto",
-        "min_height": "0",
         "background": COLORS["bg_tertiary"],
         "border": f"1px solid {COLORS['border']}",
         "borderRadius": "8px",
         "padding": "12px",
-        "justify_content": "center",
-        "align_items": "flex-start",
+        "max_height": "50vh" if is_fullscreen else "300px",
     }
 
     return card(

@@ -1071,6 +1071,15 @@ def header() -> rx.Component:
     )
 
 
+def _maybe_render_panel(panel_id: str, component: rx.Component) -> rx.Component:
+    """Hide the base panel when its fullscreen variant is active."""
+    return rx.cond(
+        PlaygroundState.expanded_panel == panel_id,
+        rx.fragment(),
+        component,
+    )
+
+
 def index() -> rx.Component:
     return rx.box(
         rx.vstack(
@@ -1087,10 +1096,10 @@ def index() -> rx.Component:
                     # Main content grid - Editor and Execution side by side
                     rx.box(
                         rx.grid(
-                            editor_section(),
-                            load_section(),
-                            execution_section(),
-                            state_section(),
+                            _maybe_render_panel("write", editor_section()),
+                            _maybe_render_panel("load", load_section()),
+                            _maybe_render_panel("execute", execution_section()),
+                            _maybe_render_panel("state", state_section()),
                             columns="2",
                             spacing="5",
                             width="100%",
@@ -1101,10 +1110,10 @@ def index() -> rx.Component:
                     # Mobile stack layout
                     rx.box(
                         rx.vstack(
-                            editor_section(),
-                            load_section(),
-                            execution_section(),
-                            state_section(),
+                            _maybe_render_panel("write", editor_section()),
+                            _maybe_render_panel("load", load_section()),
+                            _maybe_render_panel("execute", execution_section()),
+                            _maybe_render_panel("state", state_section()),
                             spacing="5",
                             width="100%",
                         ),

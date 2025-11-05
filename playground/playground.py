@@ -1003,32 +1003,24 @@ def expanded_panel_content() -> rx.Component:
 def fullscreen_overlay() -> rx.Component:
     return rx.cond(
         PlaygroundState.expanded_panel != "",
-        rx.box(
-            # Invisible input to capture ESC key
-            rx.el.input(
-                type="text",
-                on_key_down=PlaygroundState.handle_fullscreen_keydown,
-                auto_focus=True,
-                style={
-                    "position": "absolute",
-                    "opacity": "0",
-                    "pointer-events": "none",
-                    "width": "0",
-                    "height": "0",
-                },
+        rx.fragment(
+            rx.window_event_listener(
+                on_key_down=PlaygroundState.handle_fullscreen_keydown
             ),
-            expanded_panel_content(),
-            position="fixed",
-            inset="0",
-            padding=["16px", "24px", "32px"],
-            background=COLORS["bg_primary"],
-            min_height="100vh",
-            height="100vh",
-            display="flex",
-            flex_direction="column",
-            align_items="stretch",
-            overflow_y="auto",
-            z_index="1000",
+            rx.box(
+                expanded_panel_content(),
+                position="fixed",
+                inset="0",
+                padding=["16px", "24px", "32px"],
+                background=COLORS["bg_primary"],
+                min_height="100vh",
+                height="100vh",
+                display="flex",
+                flex_direction="column",
+                align_items="stretch",
+                overflow_y="auto",
+                z_index="1000",
+            ),
         ),
         rx.fragment(),
     )

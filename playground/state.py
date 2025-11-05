@@ -315,6 +315,13 @@ class PlaygroundState(rx.State):
             return
         self.expanded_panel = "" if self.expanded_panel == target else target
 
+    def handle_fullscreen_keydown(self, event):
+        """Handle keyboard events in fullscreen mode - exit on ESC key."""
+        # Event can be a string or dict depending on Reflex version
+        key = event if isinstance(event, str) else event.get("key", "")
+        if key == "Escape":
+            self.expanded_panel = ""
+
     def prefill_kwargs_for_current_function(self, force: bool = False):
         if not self.function_name:
             return

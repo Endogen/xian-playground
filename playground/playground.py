@@ -1003,6 +1003,19 @@ def fullscreen_overlay() -> rx.Component:
     return rx.cond(
         PlaygroundState.expanded_panel != "",
         rx.box(
+            # Invisible input to capture ESC key
+            rx.el.input(
+                type="text",
+                on_key_down=PlaygroundState.handle_fullscreen_keydown,
+                auto_focus=True,
+                style={
+                    "position": "absolute",
+                    "opacity": "0",
+                    "pointer-events": "none",
+                    "width": "0",
+                    "height": "0",
+                },
+            ),
             expanded_panel_content(),
             position="fixed",
             inset="0",

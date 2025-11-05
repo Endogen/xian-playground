@@ -42,6 +42,7 @@ class PlaygroundState(rx.State):
     """Global Reflex state powering the playground UI."""
 
     code_editor: str = DEFAULT_CONTRACT
+    code_editor_revision: int = 0
     contract_name: str = DEFAULT_CONTRACT_NAME
     deploy_message: str = ""
     deploy_is_error: bool = False
@@ -92,7 +93,6 @@ class PlaygroundState(rx.State):
             return [rx.redirect(self._session_route_url("new"))]
 
         self._apply_ui_state(metadata.ui_state or {})
-        self._saved_code_snapshot = self.code_editor
         env_snapshot = session_runtime.get_environment_snapshot(session_id)
         self.environment_editor = {
             key: env_snapshot.get(key, "")
@@ -121,9 +121,23 @@ class PlaygroundState(rx.State):
     def _apply_ui_state(self, snapshot: dict[str, object]):
         if not snapshot:
             return
+        pending_editor_value = snapshot.get("code_editor")
         for field in SESSION_UI_FIELDS:
-            if field in snapshot:
-                setattr(self, field, snapshot[field])
+            if field == "code_editor" or field not in snapshot:
+                continue
+            setattr(self, field, snapshot[field])
+
+        if pending_editor_value is not None:
+            self._hydrate_code_editor(str(pending_editor_value))
+
+    def _hydrate_code_editor(self, value: str, *, force_refresh: bool = False):
+        normalized = value or ""
+        if not force_refresh and normalized == self.code_editor:
+            self._saved_code_snapshot = normalized
+            return
+        self.code_editor = normalized
+        self._saved_code_snapshot = normalized
+        self.code_editor_revision += 1
 
     def _save_session(self, include_code: bool = False):
         if not self.session_id:
@@ -363,8 +377,7 @@ class PlaygroundState(rx.State):
         self.state_dump = "{}"
         self.state_editor = "{}"
         self.lint_results = []
-        self.code_editor = DEFAULT_CONTRACT
-        self._saved_code_snapshot = self.code_editor
+        self._hydrate_code_editor(DEFAULT_CONTRACT, force_refresh=True)
         self.contract_name = DEFAULT_CONTRACT_NAME
         self.environment_editor = {
             key: stringify_environment_value(env.get(key))

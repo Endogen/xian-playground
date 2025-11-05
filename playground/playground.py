@@ -482,7 +482,7 @@ def editor_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
         ),
         rx.box(
             MonacoEditor.create(
-                value=PlaygroundState.code_editor,
+                default_value=PlaygroundState.code_editor,
                 language="python",
                 theme="vs-dark",
                 height=editor_height,
@@ -498,6 +498,7 @@ def editor_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
                     "padding": {"top": 12, "bottom": 12},
                 },
                 on_change=PlaygroundState.update_code,
+                key=PlaygroundState.code_editor_revision,
                 class_name="playground-monaco",
             ),
             **editor_container_kwargs,

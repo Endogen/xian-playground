@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+import os
+
 import reflex as rx
 
+
+# Disable SSR/prerendered HTML to avoid hydration mismatches behind the proxy.
+os.environ.setdefault("REFLEX_SSR", "0")
 
 config = rx.Config(
     app_name="playground",

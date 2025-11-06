@@ -482,7 +482,7 @@ def editor_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
         ),
         rx.box(
             MonacoEditor.create(
-                value=PlaygroundState.code_editor,
+                default_value=PlaygroundState.code_editor,
                 language="python",
                 theme="vs-dark",
                 height=editor_height,
@@ -498,6 +498,7 @@ def editor_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
                     "padding": {"top": 12, "bottom": 12},
                 },
                 on_change=PlaygroundState.update_code,
+                key=PlaygroundState.code_editor_revision,
                 class_name="playground-monaco",
             ),
             **editor_container_kwargs,
@@ -1002,32 +1003,24 @@ def expanded_panel_content() -> rx.Component:
 def fullscreen_overlay() -> rx.Component:
     return rx.cond(
         PlaygroundState.expanded_panel != "",
-        rx.box(
-            # Invisible input to capture ESC key
-            rx.el.input(
-                type="text",
-                on_key_down=PlaygroundState.handle_fullscreen_keydown,
-                auto_focus=True,
-                style={
-                    "position": "absolute",
-                    "opacity": "0",
-                    "pointer-events": "none",
-                    "width": "0",
-                    "height": "0",
-                },
+        rx.fragment(
+            rx.window_event_listener(
+                on_key_down=PlaygroundState.handle_fullscreen_keydown
             ),
-            expanded_panel_content(),
-            position="fixed",
-            inset="0",
-            padding=["16px", "24px", "32px"],
-            background=COLORS["bg_primary"],
-            min_height="100vh",
-            height="100vh",
-            display="flex",
-            flex_direction="column",
-            align_items="stretch",
-            overflow_y="auto",
-            z_index="1000",
+            rx.box(
+                expanded_panel_content(),
+                position="fixed",
+                inset="0",
+                padding=["16px", "24px", "32px"],
+                background=COLORS["bg_primary"],
+                min_height="100vh",
+                height="100vh",
+                display="flex",
+                flex_direction="column",
+                align_items="stretch",
+                overflow_y="auto",
+                z_index="1000",
+            ),
         ),
         rx.fragment(),
     )
@@ -1078,6 +1071,15 @@ def header() -> rx.Component:
     )
 
 
+def _maybe_render_panel(panel_id: str, component: rx.Component) -> rx.Component:
+    """Hide the base panel when its fullscreen variant is active."""
+    return rx.cond(
+        PlaygroundState.expanded_panel == panel_id,
+        rx.fragment(),
+        component,
+    )
+
+
 def index() -> rx.Component:
     return rx.box(
         rx.vstack(
@@ -1094,10 +1096,10 @@ def index() -> rx.Component:
                     # Main content grid - Editor and Execution side by side
                     rx.box(
                         rx.grid(
-                            editor_section(),
-                            load_section(),
-                            execution_section(),
-                            state_section(),
+                            _maybe_render_panel("write", editor_section()),
+                            _maybe_render_panel("load", load_section()),
+                            _maybe_render_panel("execute", execution_section()),
+                            _maybe_render_panel("state", state_section()),
                             columns="2",
                             spacing="5",
                             width="100%",
@@ -1108,10 +1110,10 @@ def index() -> rx.Component:
                     # Mobile stack layout
                     rx.box(
                         rx.vstack(
-                            editor_section(),
-                            load_section(),
-                            execution_section(),
-                            state_section(),
+                            _maybe_render_panel("write", editor_section()),
+                            _maybe_render_panel("load", load_section()),
+                            _maybe_render_panel("execute", execution_section()),
+                            _maybe_render_panel("state", state_section()),
                             spacing="5",
                             width="100%",
                         ),

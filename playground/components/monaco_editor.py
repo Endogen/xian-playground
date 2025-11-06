@@ -17,7 +17,8 @@ class MonacoEditor(NoSSRComponent):
     tag = "Editor"
     is_default = True
 
-    value: Var[str]
+    value: Var[str] | None = None
+    default_value: Var[str] | None = None
     language: Var[str] = Var.create("python")
     theme: Var[str] = Var.create("vs-dark")
     height: Var[str] = Var.create("320px")

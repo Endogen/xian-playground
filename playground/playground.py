@@ -3,10 +3,15 @@ from __future__ import annotations
 from typing import Any, Dict
 
 import reflex as rx
+from reflex.components.radix.themes.components.badge import Badge
+from reflex.config import get_config
+from starlette.requests import Request
+from starlette.responses import RedirectResponse
+from urllib.parse import unquote
 
 from .components import MonacoEditor
-from .services import ENVIRONMENT_FIELDS
-from reflex.components.radix.themes.components.badge import Badge
+from .services import ENVIRONMENT_FIELDS, SessionRepository, session_runtime
+from .session_middleware import SessionCookieMiddleware, issue_session_cookie
 from .state import PlaygroundState
 
 
@@ -87,15 +92,33 @@ def section_header(
     description: str = "",
     panel_id: str | None = None,
     trailing: rx.Component | None = None,
+    icon: str | None = None,
 ) -> rx.Component:
     """Section header with optional fullscreen icon and trailing controls."""
 
-    title_row = rx.hstack(
+    heading_contents = []
+    if icon:
+        heading_contents.append(
+            rx.icon(
+                tag=icon,
+                size=18,
+                color=COLORS["accent_cyan"],
+            )
+        )
+    heading_contents.append(
         rx.heading(
             title,
             size="5",
             color=COLORS["text_primary"],
             font_weight="600",
+        )
+    )
+
+    title_row = rx.hstack(
+        rx.hstack(
+            *heading_contents,
+            align_items="center",
+            gap="8px",
         ),
         rx.spacer(),
         rx.cond(
@@ -133,6 +156,28 @@ def section_header(
     )
 
 
+def code_viewer(value: str, language: str, empty_message: str, font_size: str = "14px") -> rx.Component:
+    return rx.cond(
+        value == "",
+        rx.text(
+            empty_message,
+            color=COLORS["text_secondary"],
+            font_style="italic",
+            font_size="14px",
+        ),
+        rx.code_block(
+            value,
+            language=language,
+            wrap_lines=True,
+            width="100%",
+            style={
+                "height": "100%",
+                "margin": "0",
+                "fontSize": font_size,
+            },
+        ),
+    )
+
 def styled_input(**kwargs) -> rx.Component:
     """Styled input field with dark theme."""
     default_style = {
@@ -164,6 +209,73 @@ def styled_text_area(**kwargs) -> rx.Component:
         },
     }
     return rx.text_area(**{**default_style, **kwargs})
+
+
+def session_panel() -> rx.Component:
+    """Session controls and resume form."""
+    return card(
+        section_header(
+            "Session",
+            "Every browser session gets its own isolated runtime. Copy the ID to save it or resume one you've stored.",
+            icon="shield",
+        ),
+        rx.vstack(
+            rx.hstack(
+                rx.code(
+                    rx.cond(
+                        PlaygroundState.session_id != "",
+                        PlaygroundState.session_id,
+                        "Pending...",
+                    ),
+                    color=COLORS["accent_cyan"],
+                    font_size="13px",
+                    font_family="'Fira Code', 'Monaco', 'Courier New', monospace",
+                    padding="6px 10px",
+                    background=COLORS["bg_tertiary"],
+                    border_radius="6px",
+                    letter_spacing="-0.01em",
+                ),
+                styled_button(
+                    "Copy ID",
+                    color_scheme="cyan",
+                    on_click=PlaygroundState.copy_session_id,
+                ),
+                styled_input(
+                    placeholder="Enter an existing session ID (UUID4 format)",
+                    value=PlaygroundState.resume_session_input,
+                    on_change=PlaygroundState.update_resume_session_input,
+                    font_family="'Fira Code', 'Monaco', 'Courier New', monospace",
+                    font_size="13px",
+                    flex="1",
+                    min_width="320px",
+                ),
+                styled_button(
+                    "Resume",
+                    color_scheme="blue",
+                    on_click=PlaygroundState.resume_session,
+                ),
+                styled_button(
+                    "New Session",
+                    color_scheme="purple",
+                    on_click=PlaygroundState.start_new_session,
+                ),
+                align_items="center",
+                width="100%",
+                gap="12px",
+            ),
+            rx.cond(
+                PlaygroundState.session_error != "",
+                rx.text(
+                    PlaygroundState.session_error,
+                    color=COLORS["warning"],
+                    size="1",
+                ),
+                rx.fragment(),
+            ),
+            spacing="3",
+            width="100%",
+        ),
+    )
 
 
 def styled_button(text: str, color_scheme: str = "blue", **kwargs) -> rx.Component:
@@ -361,6 +473,7 @@ def editor_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
             "Write Contract",
             "Write a Python smart contract, pick a unique name, and deploy it into the local sandbox.",
             panel_id="write",
+            icon="file-pen",
         ),
         styled_input(
             placeholder="Contract name",
@@ -390,6 +503,11 @@ def editor_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
             **editor_container_kwargs,
         ),
         rx.hstack(
+            styled_button(
+                "Save Draft",
+                on_click=PlaygroundState.save_code_draft,
+                color_scheme="blue",
+            ),
             rx.spacer(),
             styled_button(
                 "Deploy Contract",
@@ -464,13 +582,20 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
         "width": "100%",
         "overflow": "auto",
         "min_height": "0",
+        "background": COLORS["bg_tertiary"],
+        "border": f"1px solid {COLORS['border']}",
+        "borderRadius": "8px",
+        "padding": "12px",
     }
+    if not is_fullscreen:
+        code_box_props["height"] = "100%"
 
     return card(
         section_header(
             "Load Contract",
             "Inspect deployed contract source code.",
             panel_id="load",
+            icon="folder-open",
         ),
         rx.hstack(
             rx.box(
@@ -528,28 +653,20 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
                     width="100%",
                 ),
                 rx.box(
-                    rx.code_block(
-                        rx.cond(
-                            PlaygroundState.load_view_decompiled,
-                            rx.cond(
-                                PlaygroundState.loaded_contract_decompiled == "",
-                                "# Decompiled source unavailable.",
-                                PlaygroundState.loaded_contract_decompiled,
-                            ),
-                            rx.cond(
-                                PlaygroundState.loaded_contract_code == "",
-                                "# Source unavailable.",
-                                PlaygroundState.loaded_contract_code,
-                            ),
+                    rx.cond(
+                        PlaygroundState.load_view_decompiled,
+                        code_viewer(
+                            PlaygroundState.loaded_contract_decompiled,
+                            "python",
+                            "# Decompiled source unavailable.",
+                            font_size="12px",
                         ),
-                        language="python",
-                        font_size=12,
-                        wrap_lines=True,
-                        width="100%",
-                        style={
-                            "height": "95%",
-                            "margin": "0",
-                        },
+                        code_viewer(
+                            PlaygroundState.loaded_contract_code,
+                            "python",
+                            "# Source unavailable.",
+                            font_size="12px",
+                        ),
                     ),
                     **code_box_props,
                 ),
@@ -570,45 +687,42 @@ def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component
         "on_change": PlaygroundState.update_kwargs,
         "font_family": "'Fira Code', 'Monaco', 'Courier New', monospace",
         "spell_check": False,
-        "min_height": "0" if is_fullscreen else "120px",
+        "min_height": "120px",
+        "height": "100%",
     }
     textarea_container_props: Dict[str, Any] = {
         "width": "100%",
-        "flex": "1 1 auto" if is_fullscreen else None,
-        "min_height": "0" if is_fullscreen else None,
-        "max_height": "50vh" if is_fullscreen else "360px",
-        "overflow": "auto",
+        "flex": "1 1 auto",
+        "min_height": "120px",
+        "overflow": "hidden",
+        "display": "flex",
+        "flex_direction": "column",
     }
-    if is_fullscreen:
-        textarea_kwargs["height"] = "100%"
-    textarea_box = rx.box(
-        styled_text_area(**textarea_kwargs),
-        **textarea_container_props,
-    )
 
-    result_container_props: Dict[str, Any] = {
+    result_panel_props: Dict[str, Any] = {
+        "display": rx.cond(PlaygroundState.run_result == "", "none", "flex"),
+        "flex_direction": "column",
+        "gap": "12px",
+        "width": "100%",
+        "flex": "0 0 auto",
+        "max_height": "50vh" if is_fullscreen else "360px",
+    }
+    result_box_props: Dict[str, Any] = {
+        "width": "100%",
+        "overflow": "auto",
         "background": COLORS["bg_tertiary"],
         "border": f"1px solid {COLORS['border']}",
-        "border_radius": "8px",
+        "borderRadius": "8px",
         "padding": "12px",
-        "overflow": "auto",
-        "width": "100%",
+        "max_height": "50vh" if is_fullscreen else "300px",
     }
-    if is_fullscreen:
-        result_container_props.update(
-            {
-                "max_height": "50vh",
-                "flex": "0 0 auto",
-            }
-        )
-    else:
-        result_container_props["max_height"] = "240px"
 
     return card(
         section_header(
             "Execute Contract",
             "Pick a deployed contract and exported function to run.",
             panel_id="execute",
+            icon="play",
         ),
         styled_select(
             items=PlaygroundState.deployed_contracts,
@@ -622,7 +736,10 @@ def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component
             placeholder="Select a function",
             on_change=PlaygroundState.change_selected_function,
         ),
-        textarea_box,
+        rx.box(
+            styled_text_area(**textarea_kwargs),
+            **textarea_container_props,
+        ),
         styled_button(
             "Run Function",
             on_click=PlaygroundState.run_contract,
@@ -633,25 +750,28 @@ def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component
             width="100%",
             background=COLORS["border"],
         ),
-        rx.heading(
-            "Result",
-            size="3",
-            color=COLORS["text_primary"],
-            font_weight="600",
-        ),
         rx.box(
-            rx.code_block(
-                rx.cond(
-                    PlaygroundState.run_result == "",
-                    "Awaiting execution...",
-                    PlaygroundState.run_result,
+            rx.hstack(
+                rx.icon(tag="terminal", size=18, color=COLORS["accent_cyan"]),
+                rx.heading(
+                    "Result",
+                    size="3",
+                    color=COLORS["text_primary"],
+                    font_weight="600",
                 ),
-                language="json",
-                wrap_lines=True,
-                width="100%",
-                background=COLORS["bg_tertiary"],
+                align_items="center",
+                gap="8px",
             ),
-            **result_container_props,
+            rx.box(
+                code_viewer(
+                    PlaygroundState.run_result,
+                    "json",
+                    "Awaiting execution...",
+                    font_size="12px",
+                ),
+                **result_box_props,
+            ),
+            **result_panel_props,
         ),
         **card_kwargs,
     )
@@ -714,6 +834,10 @@ def state_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
         "width": "100%",
         "overflow": "auto",
         "min_height": "0",
+        "background": COLORS["bg_tertiary"],
+        "border": f"1px solid {COLORS['border']}",
+        "borderRadius": "8px",
+        "padding": "12px",
     }
     if not is_fullscreen:
         inner_box_props["height"] = "100%"
@@ -723,6 +847,7 @@ def state_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
             "Contract State",
             "Live snapshot of every key stored in the driver. Refreshes after deployments and executions.",
             panel_id="state",
+            icon="database",
         ),
         rx.hstack(
             rx.checkbox(
@@ -762,16 +887,11 @@ def state_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
             ),
             rx.box(
                 rx.box(
-                    rx.code_block(
+                    code_viewer(
                         PlaygroundState.state_dump,
-                        language="json",
-                        wrap_lines=True,
-                        font_size=12,
-                        width="100%",
-                        style={
-                            "height": "95%",
-                            "margin": "0",
-                        },
+                        "json",
+                        "State is empty.",
+                        font_size="12px",
                     ),
                     **inner_box_props,
                 ),
@@ -883,6 +1003,19 @@ def fullscreen_overlay() -> rx.Component:
     return rx.cond(
         PlaygroundState.expanded_panel != "",
         rx.box(
+            # Invisible input to capture ESC key
+            rx.el.input(
+                type="text",
+                on_key_down=PlaygroundState.handle_fullscreen_keydown,
+                auto_focus=True,
+                style={
+                    "position": "absolute",
+                    "opacity": "0",
+                    "pointer-events": "none",
+                    "width": "0",
+                    "height": "0",
+                },
+            ),
             expanded_panel_content(),
             position="fixed",
             inset="0",
@@ -957,6 +1090,7 @@ def index() -> rx.Component:
             ),
             rx.box(
                 rx.vstack(
+                    session_panel(),
                     # Main content grid - Editor and Execution side by side
                     rx.box(
                         rx.grid(
@@ -1024,3 +1158,39 @@ app.add_page(
     title="Xian Contracting Playground",
     on_load=PlaygroundState.on_load,
 )
+
+app._api.add_middleware(SessionCookieMiddleware)
+
+
+def _frontend_redirect_target(request: Request) -> str:
+    next_param = request.query_params.get("next")
+    if next_param:
+        return unquote(next_param)
+    referer = request.headers.get("referer")
+    if referer:
+        return referer
+    deploy = get_config().deploy_url
+    if deploy:
+        return deploy
+    return "/"
+
+
+@app._api.route("/sessions/new", methods=["GET"])
+async def create_session_route(request: Request):
+    metadata = session_runtime.create_session()
+    response = RedirectResponse(_frontend_redirect_target(request))
+    issue_session_cookie(response, metadata.session_id)
+    return response
+
+
+@app._api.route("/sessions/{session_id}", methods=["GET"])
+async def resume_session_route(request: Request):
+    raw = request.path_params.get("session_id", "").lower()
+    if not SessionRepository.is_valid_session_id(raw):
+        return RedirectResponse("/sessions/new")
+    if not session_runtime.session_exists(raw):
+        return RedirectResponse("/sessions/new")
+    metadata = session_runtime.ensure_exists(raw)
+    response = RedirectResponse(_frontend_redirect_target(request))
+    issue_session_cookie(response, metadata.session_id)
+    return response

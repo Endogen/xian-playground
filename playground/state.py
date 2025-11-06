@@ -2,54 +2,47 @@ from __future__ import annotations
 
 import ast
 import json
-from datetime import datetime as PyDatetime
+import time
+from http.cookies import SimpleCookie
 from typing import List
+from urllib.parse import quote
 
 import reflex as rx
+from reflex.config import get_config
 
-from contracting.stdlib.bridge.time import Datetime as ContractingDatetime
-
+from .defaults import DEFAULT_CONTRACT, DEFAULT_CONTRACT_NAME, DEFAULT_KWARGS_INPUT
 from .services import (
     ContractDetails,
-    contracting_service,
     ContractExportInfo,
-    ENVIRONMENT_FIELDS,
     DEFAULT_ENVIRONMENT,
+    ENVIRONMENT_FIELDS,
+    SESSION_COOKIE_NAME,
+    SessionNotFoundError,
+    SessionRepository,
     lint_contract as run_lint,
+    session_runtime,
 )
+from .services.environment import stringify_environment_value
 
 ENVIRONMENT_FIELD_KEYS = [field["key"] for field in ENVIRONMENT_FIELDS]
-
-
-DEFAULT_CONTRACT = """\
-balances = Hash(default_value=0)
-
-
-@construct
-def seed():
-    balances['treasury'] = 1_000
-
-
-@export
-def transfer(to: str, amount: int):
-    assert amount > 0, 'Amount must be positive.'
-    assert balances[ctx.caller] >= amount, 'Insufficient balance.'
-
-    balances[ctx.caller] -= amount
-    balances[to] += amount
-
-
-@export
-def balance_of(account: str):
-    return balances[account]
-"""
+SESSION_UI_FIELDS = [
+    "code_editor",
+    "contract_name",
+    "kwargs_input",
+    "load_view_decompiled",
+    "expanded_panel",
+    "selected_contract",
+    "load_selected_contract",
+    "function_name",
+    "show_internal_state",
+]
 
 
 class PlaygroundState(rx.State):
     """Global Reflex state powering the playground UI."""
 
     code_editor: str = DEFAULT_CONTRACT
-    contract_name: str = "con_demo_token"
+    contract_name: str = DEFAULT_CONTRACT_NAME
     deploy_message: str = ""
     deploy_is_error: bool = False
 
@@ -59,6 +52,10 @@ class PlaygroundState(rx.State):
     environment_editor: dict[str, str] = {
         key: DEFAULT_ENVIRONMENT.get(key, "") for key in ENVIRONMENT_FIELD_KEYS
     }
+    session_id: str = ""
+    session_error: str = ""
+    resume_session_input: str = ""
+    _last_ui_snapshot_ts: float = 0.0
 
     state_is_editing: bool = False
     state_editor: str = ""
@@ -77,25 +74,137 @@ class PlaygroundState(rx.State):
     load_view_decompiled: bool = True
     expanded_panel: str = ""
 
-    kwargs_input: str = "{}"
+    kwargs_input: str = DEFAULT_KWARGS_INPUT
     run_result: str = ""
     state_dump: str = "{}"
+    _saved_code_snapshot: str = DEFAULT_CONTRACT
 
     def on_load(self):
-        env = contracting_service.get_environment()
+        session_id = self._cookie_session_id()
+        if not session_id:
+            self.session_error = "Session cookie missing. Issuing a fresh session."
+            return [rx.redirect(self._session_route_url("new"))]
+        self.session_id = session_id
+        try:
+            metadata = session_runtime.ensure_exists(session_id)
+        except SessionNotFoundError:
+            self.session_error = "Session not found. Creating a new one."
+            return [rx.redirect(self._session_route_url("new"))]
+
+        self._apply_ui_state(metadata.ui_state or {})
+        self._saved_code_snapshot = self.code_editor
+        env_snapshot = session_runtime.get_environment_snapshot(session_id)
         self.environment_editor = {
-            key: self._stringify_env_value(env.get(key))
+            key: env_snapshot.get(key, "")
             for key in ENVIRONMENT_FIELD_KEYS
         }
-        if self.deployed_contracts:
-            if not self.load_selected_contract:
-                self.load_selected_contract = self.deployed_contracts[0]
-        self.state_editor = self.state_dump
+        self.session_error = ""
+        self._last_ui_snapshot_ts = time.time()
         return [
             type(self).refresh_contracts,
             type(self).refresh_state,
             type(self).refresh_environment,
         ]
+
+    def _cookie_session_id(self) -> str:
+        header = getattr(self.router.headers, "cookie", "") or ""
+        if not header:
+            return ""
+        jar = SimpleCookie()
+        try:
+            jar.load(header)
+        except Exception:
+            return ""
+        morsel = jar.get(SESSION_COOKIE_NAME)
+        return (morsel.value or "").strip() if morsel else ""
+
+    def _apply_ui_state(self, snapshot: dict[str, object]):
+        if not snapshot:
+            return
+        for field in SESSION_UI_FIELDS:
+            if field in snapshot:
+                setattr(self, field, snapshot[field])
+
+    def _save_session(self, include_code: bool = False):
+        if not self.session_id:
+            return
+        payload = {}
+        for field in SESSION_UI_FIELDS:
+            if field == "code_editor":
+                payload[field] = self.code_editor if include_code else self._saved_code_snapshot
+            else:
+                payload[field] = getattr(self, field)
+        session_runtime.save_ui_state(self.session_id, payload)
+        if include_code:
+            self._saved_code_snapshot = self.code_editor
+
+    def _require_session(self) -> str | None:
+        if not self.session_id:
+            self.session_error = "Session unavailable. Refresh the page to rehydrate."
+            return None
+        return self.session_id
+
+    def _frontend_origin(self) -> str:
+        url = getattr(self.router, "url", None)
+        if url is not None:
+            origin = getattr(url, "origin", "") or ""
+            if origin:
+                return origin.rstrip("/")
+        header_origin = getattr(self.router.headers, "origin", "") or ""
+        if header_origin:
+            return header_origin.rstrip("/")
+        config = get_config()
+        if config.deploy_url:
+            return config.deploy_url.rstrip("/")
+        return ""
+
+    def _session_route_url(self, suffix: str) -> str:
+        config = get_config()
+        base = (config.api_url or "").rstrip("/")
+        path = suffix.lstrip("/")
+        next_url = self._frontend_origin()
+        query = ""
+        if next_url:
+            encoded = quote(next_url, safe=":/?#[]@!$&'()*+,;=%")
+            query = f"?next={encoded}"
+        if not base:
+            return f"/sessions/{path}{query}"
+        return f"{base}/sessions/{path}{query}"
+
+    def copy_session_id(self):
+        if not self.session_id:
+            return [rx.toast.error("Session unavailable. Reload the page.")]
+        return [
+            rx.set_clipboard(self.session_id),
+            rx.toast.success("Session ID copied."),
+        ]
+
+    def start_new_session(self):
+        return [rx.redirect(self._session_route_url("new"))]
+
+    def update_resume_session_input(self, value: str):
+        self.resume_session_input = (value or "").strip().lower()
+
+    def resume_session(self):
+        target = (self.resume_session_input or "").strip().lower()
+        if not target:
+            self.session_error = "Enter a session ID to resume."
+            return [rx.toast.error(self.session_error)]
+        if not SessionRepository.is_valid_session_id(target):
+            self.session_error = "Session ID must be a UUID4 hex string."
+            return [rx.toast.error(self.session_error)]
+        if not session_runtime.session_exists(target):
+            self.session_error = "Session not found."
+            return [rx.toast.error(self.session_error)]
+        self.session_error = ""
+        return [rx.redirect(self._session_route_url(target))]
+
+    def save_code_draft(self):
+        session_id = self._require_session()
+        if not session_id:
+            return []
+        self._save_session(include_code=True)
+        return [rx.toast.success("Draft saved.")]
 
     def update_code(self, value: str):
         self.code_editor = value or ""
@@ -110,7 +219,7 @@ class PlaygroundState(rx.State):
     def change_selected_contract(self, value: str):
         if value != self.selected_contract:
             self.selected_contract = value
-            self.kwargs_input = "{}"
+            self.kwargs_input = DEFAULT_KWARGS_INPUT
         return [type(self).refresh_functions]
 
     def change_selected_function(self, value: str):
@@ -119,7 +228,10 @@ class PlaygroundState(rx.State):
         self.prefill_kwargs_for_current_function(force=True)
 
     def refresh_contracts(self):
-        contracts = contracting_service.list_contracts()
+        session_id = self._require_session()
+        if not session_id:
+            return []
+        contracts = session_runtime.list_contracts(session_id)
         self.deployed_contracts = contracts
 
         if not contracts:
@@ -134,7 +246,7 @@ class PlaygroundState(rx.State):
 
         if self.selected_contract not in contracts:
             self.selected_contract = contracts[0]
-            self.kwargs_input = "{}"
+            self.kwargs_input = DEFAULT_KWARGS_INPUT
 
         if not self.load_selected_contract or self.load_selected_contract not in contracts:
             self.load_selected_contract = contracts[0]
@@ -142,13 +254,16 @@ class PlaygroundState(rx.State):
         return [type(self).refresh_functions, type(self).refresh_loaded_contract]
 
     def refresh_functions(self):
+        session_id = self._require_session()
+        if not session_id:
+            return []
         if not self.selected_contract:
             self.available_functions = []
             self.function_name = ""
             self.function_required_params = {}
             return
 
-        exports: List[ContractExportInfo] = contracting_service.get_export_metadata(self.selected_contract)
+        exports: List[ContractExportInfo] = session_runtime.get_export_metadata(session_id, self.selected_contract)
         required_map = {
             export.name: [
                 param.name for param in (export.parameters or []) if param.required
@@ -172,13 +287,16 @@ class PlaygroundState(rx.State):
         return [type(self).refresh_loaded_contract]
 
     def refresh_loaded_contract(self):
+        session_id = self._require_session()
+        if not session_id:
+            return []
         if not self.load_selected_contract:
             self.loaded_contract_code = ""
             self.loaded_contract_decompiled = ""
             return []
 
         try:
-            details: ContractDetails = contracting_service.get_contract_details(self.load_selected_contract)
+            details: ContractDetails = session_runtime.get_contract_details(session_id, self.load_selected_contract)
         except Exception as exc:
             self.loaded_contract_code = ""
             self.loaded_contract_decompiled = ""
@@ -197,27 +315,37 @@ class PlaygroundState(rx.State):
             return
         self.expanded_panel = "" if self.expanded_panel == target else target
 
+    def handle_fullscreen_keydown(self, event):
+        """Handle keyboard events in fullscreen mode - exit on ESC key."""
+        # Event can be a string or dict depending on Reflex version
+        key = event if isinstance(event, str) else event.get("key", "")
+        if key == "Escape":
+            self.expanded_panel = ""
+
     def prefill_kwargs_for_current_function(self, force: bool = False):
         if not self.function_name:
             return
         required = self.function_required_params.get(self.function_name, [])
         if not required:
-            if force or self.kwargs_input.strip() != "{}":
-                self.kwargs_input = "{}"
+            if force or self.kwargs_input.strip() != DEFAULT_KWARGS_INPUT:
+                self.kwargs_input = DEFAULT_KWARGS_INPUT
             return
         # Only seed the editor if it is still empty or in the default form.
         current = self.kwargs_input.strip()
-        if force or current in ("", "{}"):
+        if force or current in ("", DEFAULT_KWARGS_INPUT):
             payload = {name: "" for name in required}
             self.kwargs_input = json.dumps(payload, indent=2)
 
     def confirm_clear_state(self):
+        session_id = self._require_session()
+        if not session_id:
+            return []
         try:
-            contracting_service.reset_state()
+            metadata = session_runtime.reset_state(session_id)
         except Exception as exc:
             return [rx.toast.error(f"Failed to clear state: {exc}")]
 
-        env = contracting_service.get_environment()
+        env = metadata.environment
 
         self.deployed_contracts = []
         self.selected_contract = ""
@@ -229,18 +357,20 @@ class PlaygroundState(rx.State):
         self.loaded_contract_decompiled = ""
         self.load_view_decompiled = True
         self.expanded_panel = ""
-        self.kwargs_input = "{}"
+        self.kwargs_input = DEFAULT_KWARGS_INPUT
         self.run_result = ""
         self.state_is_editing = False
         self.state_dump = "{}"
         self.state_editor = "{}"
         self.lint_results = []
         self.code_editor = DEFAULT_CONTRACT
-        self.contract_name = "con_demo_token"
+        self._saved_code_snapshot = self.code_editor
+        self.contract_name = DEFAULT_CONTRACT_NAME
         self.environment_editor = {
-            key: self._stringify_env_value(env.get(key))
+            key: stringify_environment_value(env.get(key))
             for key in ENVIRONMENT_FIELD_KEYS
         }
+        self._save_session(include_code=True)
 
         return [
             rx.toast.success("All contracts and state cleared."),
@@ -250,7 +380,10 @@ class PlaygroundState(rx.State):
         ]
 
     def export_state(self):
-        data = contracting_service.dump_state(show_internal=True)
+        session_id = self._require_session()
+        if not session_id:
+            return []
+        data = session_runtime.dump_state(session_id, show_internal=True)
         return [
             rx.download(
                 data=data,
@@ -261,6 +394,10 @@ class PlaygroundState(rx.State):
     async def import_state(self, files: list[rx.UploadFile]):
         if not files:
             return [rx.toast.info("Select a JSON export to import.")]
+
+        session_id = self._require_session()
+        if not session_id:
+            return []
 
         file = files[0]
         try:
@@ -284,9 +421,10 @@ class PlaygroundState(rx.State):
             return [rx.toast.error(f"Invalid JSON: {exc}")]
 
         try:
-            contracting_service.apply_state_snapshot(payload)
+            session_runtime.apply_state_snapshot(session_id, payload)
         except Exception as exc:
             return [rx.toast.error(f"Failed to import state: {exc}")]
+        self._save_session()
 
         return [
             rx.toast.success("State imported."),
@@ -299,8 +437,12 @@ class PlaygroundState(rx.State):
         if not target:
             return [rx.toast.info("Select a contract to remove.")]
 
+        session_id = self._require_session()
+        if not session_id:
+            return []
+
         try:
-            contracting_service.remove_contract(target)
+            session_runtime.remove_contract(session_id, target)
         except Exception as exc:
             return [rx.toast.error(f"Failed to remove contract '{target}': {exc}")]
 
@@ -318,6 +460,7 @@ class PlaygroundState(rx.State):
             self.expanded_panel = ""
 
         self.run_result = ""
+        self._save_session()
 
         return [
             rx.toast.success(f"Contract '{target}' removed."),
@@ -326,21 +469,30 @@ class PlaygroundState(rx.State):
         ]
 
     def refresh_state(self):
-        snapshot = contracting_service.dump_state(self.show_internal_state)
+        session_id = self._require_session()
+        if not session_id:
+            return []
+        snapshot = session_runtime.dump_state(session_id, self.show_internal_state)
         self.state_dump = snapshot
         if not self.state_is_editing:
             self.state_editor = snapshot
 
     def refresh_environment(self):
-        env = contracting_service.get_environment()
+        session_id = self._require_session()
+        if not session_id:
+            return []
+        env = session_runtime.get_environment(session_id)
         self.environment_editor = {
-            key: self._stringify_env_value(env.get(key))
+            key: stringify_environment_value(env.get(key))
             for key in ENVIRONMENT_FIELD_KEYS
         }
 
     def deploy_contract(self):
+        session_id = self._require_session()
+        if not session_id:
+            return []
         try:
-            contracting_service.deploy(self.contract_name, self.code_editor)
+            session_runtime.deploy(session_id, self.contract_name, self.code_editor)
         except Exception as exc:
             self.deploy_is_error = True
             self.deploy_message = f"Deploy failed: {exc}"
@@ -350,7 +502,8 @@ class PlaygroundState(rx.State):
         self.deploy_message = f"Contract '{self.contract_name}' deployed successfully."
         self.selected_contract = self.contract_name
         self.load_selected_contract = self.contract_name
-        self.kwargs_input = "{}"
+        self.kwargs_input = DEFAULT_KWARGS_INPUT
+        self._save_session(include_code=True)
 
         events = [
             rx.toast.success(self.deploy_message),
@@ -389,13 +542,16 @@ class PlaygroundState(rx.State):
             self.expert_message = "No environment key selected."
             return []
         current = self.environment_editor.get(key, "")
+        session_id = self._require_session()
+        if not session_id:
+            return []
         try:
             if current.strip() == "":
-                contracting_service.remove_environment_var(key)
+                session_runtime.remove_environment_var(session_id, key)
                 message = f"Environment['{key}'] cleared."
                 toast = rx.toast.info(message)
             else:
-                contracting_service.set_environment_var(key, current)
+                session_runtime.set_environment_var(session_id, key, current)
                 message = f"Environment['{key}'] updated."
                 toast = rx.toast.success(message)
         except Exception as exc:
@@ -405,6 +561,7 @@ class PlaygroundState(rx.State):
 
         self.expert_is_error = False
         self.expert_message = message
+        self._save_session()
         return [toast, type(self).refresh_environment]
 
     def reset_environment_value(self, key):
@@ -412,21 +569,15 @@ class PlaygroundState(rx.State):
             key = key.get("value", "")
         if not key:
             return []
-        contracting_service.remove_environment_var(key)
+        session_id = self._require_session()
+        if not session_id:
+            return []
+        session_runtime.remove_environment_var(session_id, key)
         self.environment_editor[key] = DEFAULT_ENVIRONMENT.get(key, "")
         self.expert_is_error = False
         self.expert_message = f"Environment['{key}'] cleared."
+        self._save_session()
         return [rx.toast.info(self.expert_message), type(self).refresh_environment]
-
-    @staticmethod
-    def _stringify_env_value(value: object) -> str:
-        if isinstance(value, ContractingDatetime):
-            return value._datetime.isoformat()
-        if isinstance(value, PyDatetime):
-            return value.isoformat()
-        if value is None:
-            return ""
-        return str(value)
 
     def update_state_editor(self, value: str):
         self.state_editor = value
@@ -447,13 +598,17 @@ class PlaygroundState(rx.State):
         except json.JSONDecodeError as exc:
             return [rx.toast.error(f"Invalid JSON: {exc}")]
 
+        session_id = self._require_session()
+        if not session_id:
+            return []
         try:
-            contracting_service.apply_state_snapshot(data)
+            session_runtime.apply_state_snapshot(session_id, data)
         except Exception as exc:
             return [rx.toast.error(f"Failed to update state: {exc}")]
 
         self.state_is_editing = False
         self.refresh_state()
+        self._save_session()
         return [rx.toast.success("State updated.")]
 
     def lint_contract(self):
@@ -523,8 +678,11 @@ class PlaygroundState(rx.State):
             self.run_result = str(exc)
             return [rx.toast.error(self.run_result)]
 
+        session_id = self._require_session()
+        if not session_id:
+            return []
         try:
-            call_result = contracting_service.call(self.selected_contract, self.function_name, kwargs)
+            call_result = session_runtime.call(session_id, self.selected_contract, self.function_name, kwargs)
         except Exception as exc:
             self.run_result = f"Execution failed: {exc}"
             return [rx.toast.error(self.run_result)]

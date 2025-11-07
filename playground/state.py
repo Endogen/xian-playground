@@ -194,7 +194,7 @@ class PlaygroundState(rx.State):
         ]
 
     def start_new_session(self):
-        return [rx.redirect(self._session_route_url("new"))]
+        return [rx.redirect(self._session_route_url("new"), is_external=True)]
 
     def update_resume_session_input(self, value: str):
         self.resume_session_input = (value or "").strip().lower()
@@ -211,7 +211,7 @@ class PlaygroundState(rx.State):
             self.session_error = "Session not found."
             return [rx.toast.error(self.session_error)]
         self.session_error = ""
-        return [rx.redirect(self._session_route_url(target))]
+        return [rx.redirect(self._session_route_url(target), is_external=True)]
 
     def save_code_draft(self):
         session_id = self._require_session()

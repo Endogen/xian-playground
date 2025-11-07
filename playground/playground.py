@@ -11,7 +11,7 @@ from urllib.parse import unquote
 
 from .components import MonacoEditor
 from .services import ENVIRONMENT_FIELDS, SessionRepository, session_runtime
-from .session_middleware import SessionCookieMiddleware, issue_session_cookie
+from .middleware import SessionCookieMiddleware, issue_session_cookie
 from .state import PlaygroundState
 
 

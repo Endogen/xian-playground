@@ -52,37 +52,20 @@ This launches the Vite dev server with hot reload and a single backend worker on
 - All session state (contract storage, metadata, UI snapshots) lives under `playground/.sessions/`. Ensure the runtime user can read/write this directory and monitor it for growth.
 - Do **not** set `REFLEX_REDIS_URL` unless you also add cross-process locking. The playground’s session manager is intentionally single-process; Redis would cause Reflex to spawn multiple workers and corrupt the per-session filesystem state.
 
-### Example Nginx config
+### Example Nginx config (single-port mode)
 
 ```nginx
+  GNU nano 7.2                                                              /etc/nginx/sites-available/playground.xian.technology
 server
 {
         server_name playground.xian.technology;
 
-        location /_event
+        location /
         {
-                proxy_pass http://127.0.0.1:8000;
+                proxy_pass http://127.0.0.1:8001;
                 proxy_http_version 1.1;
                 proxy_set_header Upgrade $http_upgrade;
                 proxy_set_header Connection "upgrade";
-                proxy_set_header Host $host;
-                proxy_set_header X-Real-IP $remote_addr;
-                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                proxy_set_header X-Forwarded-Proto $scheme;
-        }
-
-        location ^~ /sessions
-        {
-                proxy_pass http://127.0.0.1:8000;
-                proxy_set_header Host $host;
-                proxy_set_header X-Real-IP $remote_addr;
-                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                proxy_set_header X-Forwarded-Proto $scheme;
-        }
-
-        location /
-        {
-                proxy_pass http://127.0.0.1:3000;
                 proxy_set_header Host $host;
                 proxy_set_header X-Real-IP $remote_addr;
                 proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -110,23 +93,24 @@ server
 
 Reload Nginx after editing: `sudo nginx -s reload`.
 
+> **Note:** The commands above assume the Reflex service is running with `poetry run reflex run --env prod --single-port --frontend-port 8001 --backend-port 8001`. Adjust the port if you choose a different one.
+
 ### systemd unit
 
 To keep the playground running after boot, install a service such as:
+`/etc/systemd/system/xian-playground.service`
 
 ```
-/etc/systemd/system/xian-playground.service
-------------------------------------------
 [Unit]
-Description=Xian Playground (Reflex)
+Description=Xian Playground
 After=network.target
 
 [Service]
 Type=simple
 User=endogen
 WorkingDirectory=/home/endogen/xian-playground
-Environment="PATH=/home/endogen/.cache/pypoetry/virtualenvs/xian-playground--o3SVNIl-py3.11/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-ExecStart=/usr/bin/env poetry run reflex run --env prod
+Environment="PATH=/home/endogen/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/endogen/.cache/pypoetry/virtualenvs/xian-playground--o3SVNIl-py3.11/bin"
+ExecStart=/home/endogen/.local/bin/poetry run reflex run --env prod --single-port --frontend-port 8001 --backend-port 8001
 Restart=on-failure
 RestartSec=5
 

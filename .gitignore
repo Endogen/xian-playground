@@ -13,3 +13,4 @@ CLAUDE.md
 no-gambiarra-policy.txt
 playground/.contract_state/
 playground/.sessions/
+tests/

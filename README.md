@@ -11,23 +11,11 @@ An interactive Reflex-based web playground for the Xian Contracting engine. User
 
 ## Configuration
 
-1. Copy the example environment file and adjust values for your deployment:
-
-   ```bash
-   cp .env.example .env
-   ```
-
-2. Set the following keys (all are required because `rxconfig.py` validates them on import):
-
-   | Key | Description | Typical Value |
-   | --- | ----------- | ------------- |
-   | `REFLEX_FRONTEND_PORT` | Port the compiled React app listens on. | `3001` |
-   | `REFLEX_BACKEND_PORT` | Port for the ASGI backend (Gunicorn/Granian). | `8000` |
-   | `REFLEX_DEPLOY_URL` | Public HTTPS origin for the UI. | `https://playground.xian.technology` |
-   | `REFLEX_API_URL` | Public HTTPS origin the frontend uses for events/API. | `https://playground.xian.technology` |
-   | `PLAYGROUND_SESSION_COOKIE_SECURE` | `1` to set the `Secure` flag on session cookies when fronted by TLS. | `1` |
-
-Keep `.env` out of version control; only `.env.example` is tracked.
+Runtime settings are declared directly in `rxconfig.py`. By default the playground
+assumes the public origin `https://playground.xian.technology`, serves the frontend
+on port `3000`, the backend on `8000`, and disables SSR (`REFLEX_SSR=0`) to avoid
+hydration flicker behind the reverse proxy. If you need to change any value,
+edit `rxconfig.py` (or export the matching environment variable before launching).
 
 ## Installation
 
@@ -45,9 +33,9 @@ This installs the Reflex app plus the editable `xian-contracting` package locate
 poetry run reflex run --env prod
 ```
 
-- Frontend: serves the precompiled React bundle via Sirv on `REFLEX_FRONTEND_PORT` (default `3001`).
-- Backend: runs Gunicorn+Uvicorn (or Granian if Gunicorn isn’t available) on `REFLEX_BACKEND_PORT` (default `8000`).
-- The command expects both ports to be free. Use `--single-port` if you prefer the backend to host the compiled frontend itself, e.g. `poetry run reflex run --env prod --single-port --frontend-port 3001`.
+- Frontend: serves the precompiled React bundle via Sirv on port **3000**.
+- Backend: Granian/ASGI server on port **8000**.
+- Keep this process alive (or run it via `systemd`; see below). If either port is already bound you will see a startup error.
 
 ### Development mode
 
@@ -59,9 +47,99 @@ This launches the Vite dev server with hot reload and a single backend worker on
 
 ## Reverse proxy / deployment notes
 
-- Behind Nginx or another reverse proxy, forward the HTTPS origin (`https://playground.xian.technology`) to the frontend port and proxy API/WebSocket routes (`/_event`, `/_upload`, `/sessions`, etc.) to the backend port. Remember to pass `Upgrade`/`Connection` headers for WebSockets.
+- Behind Nginx, send **all** paths to the frontend on port 3000 *except* the backend helpers (`/_event`, `/sessions`). Those must be proxied to port 8000 with `proxy_http_version 1.1`, `Upgrade`, and `Connection "upgrade"` headers so the Reflex websocket works.
+- Add a CSP header that includes `'unsafe-eval'` in `script-src`. Reflex bundles (Monaco, Radix) rely on `new Function`, and blocking it causes hydration failures.
 - All session state (contract storage, metadata, UI snapshots) lives under `playground/.sessions/`. Ensure the runtime user can read/write this directory and monitor it for growth.
 - Do **not** set `REFLEX_REDIS_URL` unless you also add cross-process locking. The playground’s session manager is intentionally single-process; Redis would cause Reflex to spawn multiple workers and corrupt the per-session filesystem state.
+
+### Example Nginx config
+
+```nginx
+server
+{
+        server_name playground.xian.technology;
+
+        location /_event
+        {
+                proxy_pass http://127.0.0.1:8000;
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection "upgrade";
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        location ^~ /sessions
+        {
+                proxy_pass http://127.0.0.1:8000;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        location /
+        {
+                proxy_pass http://127.0.0.1:3000;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        listen 443 ssl;
+        ssl_certificate /etc/letsencrypt/live/xian.technology/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/xian.technology/privkey.pem;
+        include /etc/letsencrypt/options-ssl-nginx.conf;
+        ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+}
+
+server
+{
+        if ($host = playground.xian.technology)
+        {
+                return 301 https://$host$request_uri;
+        }
+        listen 80;
+        server_name playground.xian.technology;
+        return 404;
+}
+```
+
+Reload Nginx after editing: `sudo nginx -s reload`.
+
+### systemd unit
+
+To keep the playground running after boot, install a service such as:
+
+```
+/etc/systemd/system/xian-playground.service
+------------------------------------------
+[Unit]
+Description=Xian Playground (Reflex)
+After=network.target
+
+[Service]
+Type=simple
+User=endogen
+WorkingDirectory=/home/endogen/xian-playground
+Environment="PATH=/home/endogen/.cache/pypoetry/virtualenvs/xian-playground--o3SVNIl-py3.11/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=/usr/bin/env poetry run reflex run --env prod
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```
+sudo systemctl daemon-reload
+sudo systemctl enable --now xian-playground
+```
+
+Use `journalctl -u xian-playground -f` to follow logs.
 
 ## Testing
 

@@ -11,11 +11,24 @@ An interactive Reflex-based web playground for the Xian Contracting engine. User
 
 ## Configuration
 
-Runtime settings are declared directly in `rxconfig.py`. By default the playground
-assumes the public origin `https://playground.xian.technology`, serves the frontend
-on port `3000`, the backend on `8000`, and disables SSR (`REFLEX_SSR=0`) to avoid
-hydration flicker behind the reverse proxy. If you need to change any value,
-edit `rxconfig.py` (or export the matching environment variable before launching).
+Runtime settings are declared directly in `rxconfig.py`. For local development you
+can use the stock file:
+
+```python
+"""Reflex runtime configuration for the playground app."""
+
+from __future__ import annotations
+
+import reflex as rx
+
+config = rx.Config(
+    app_name="playground",
+    disable_plugins=["reflex.plugins.sitemap.SitemapPlugin"],
+)
+```
+
+On the production server we override ports and other flags via CLI arguments (see
+“Running the app” below), so the same file works in both environments.
 
 ## Installation
 
@@ -27,15 +40,32 @@ This installs the Reflex app plus the editable `xian-contracting` package locate
 
 ## Running the app
 
-### Production mode (recommended, matches server behavior)
+### Local development
+
+```bash
+poetry run reflex run
+```
+
+This launches the Vite dev server with hot reload plus a single backend worker.
+The terminal prints the URLs it binds to (typically `http://localhost:3000`).
+
+### Production (single-port recommended)
+
+```bash
+poetry run reflex run --env prod --single-port --frontend-port 8001 --backend-port 8001
+```
+
+- A single Granian process serves both the static bundle and websocket/events on port **8001** (adjust as needed).
+- Keep this process alive (or run it via `systemd`; see below). If the port is already bound you will see a startup error.
+
+### Production (split ports)
 
 ```bash
 poetry run reflex run --env prod
 ```
 
-- Frontend: serves the precompiled React bundle via Sirv on port **3000**.
-- Backend: Granian/ASGI server on port **8000**.
-- Keep this process alive (or run it via `systemd`; see below). If either port is already bound you will see a startup error.
+- Frontend Sirv server listens on **3000**, backend on **8000**.
+- Use the split-port nginx config below so `/` goes to 3000 and only the socket/API endpoints hit 8000.
 
 ### Development mode
 
@@ -47,7 +77,8 @@ This launches the Vite dev server with hot reload and a single backend worker on
 
 ## Reverse proxy / deployment notes
 
-- Behind Nginx, send **all** paths to the frontend on port 3000 *except* the backend helpers (`/_event`, `/sessions`). Those must be proxied to port 8000 with `proxy_http_version 1.1`, `Upgrade`, and `Connection "upgrade"` headers so the Reflex websocket works.
+- For **single-port** deployments, forward every path (including `/_event`) to the chosen backend port and enable websocket headers.
+- For **split-port** deployments, send `/` to port 3000 and proxy only `/_event` + `/sessions` to port 8000 with `proxy_http_version 1.1`, `Upgrade`, and `Connection "upgrade"` so the websocket works.
 - Add a CSP header that includes `'unsafe-eval'` in `script-src`. Reflex bundles (Monaco, Radix) rely on `new Function`, and blocking it causes hydration failures.
 - All session state (contract storage, metadata, UI snapshots) lives under `playground/.sessions/`. Ensure the runtime user can read/write this directory and monitor it for growth.
 - Do **not** set `REFLEX_REDIS_URL` unless you also add cross-process locking. The playground’s session manager is intentionally single-process; Redis would cause Reflex to spawn multiple workers and corrupt the per-session filesystem state.
@@ -55,7 +86,6 @@ This launches the Vite dev server with hot reload and a single backend worker on
 ### Example Nginx config (single-port mode)
 
 ```nginx
-  GNU nano 7.2                                                              /etc/nginx/sites-available/playground.xian.technology
 server
 {
         server_name playground.xian.technology;
@@ -93,11 +123,61 @@ server
 
 Reload Nginx after editing: `sudo nginx -s reload`.
 
-> **Note:** The commands above assume the Reflex service is running with `poetry run reflex run --env prod --single-port --frontend-port 8001 --backend-port 8001`. Adjust the port if you choose a different one.
+### Example Nginx config (split ports)
+
+Use this when running `poetry run reflex run --env prod` without `--single-port`.
+
+```nginx
+server {
+        server_name playground.xian.technology;
+
+        location /_event {
+                proxy_pass http://127.0.0.1:8000;
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection "upgrade";
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        location ^~ /sessions {
+                proxy_pass http://127.0.0.1:8000;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        location / {
+                proxy_pass http://127.0.0.1:3000;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        listen 443 ssl;
+        ssl_certificate /etc/letsencrypt/live/xian.technology/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/xian.technology/privkey.pem;
+        include /etc/letsencrypt/options-ssl-nginx.conf;
+        ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+}
+
+server {
+        if ($host = playground.xian.technology) {
+                return 301 https://$host$request_uri;
+        }
+        listen 80;
+        server_name playground.xian.technology;
+        return 404;
+}
+```
 
 ### systemd unit
 
-To keep the playground running after boot, install a service such as:
+To keep the playground running after boot, install a service such as (uses the single-port 8001 command—adjust if you choose different ports or the split-port mode):
 `/etc/systemd/system/xian-playground.service`
 
 ```

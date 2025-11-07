@@ -16,5 +16,6 @@ config = rx.Config(
     api_url="https://playground.xian.technology",
     frontend_port=3000,
     backend_port=8000,
+    show_built_with_reflex=False,
     disable_plugins=["reflex.plugins.sitemap.SitemapPlugin"],
 )

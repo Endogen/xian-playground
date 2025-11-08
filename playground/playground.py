@@ -165,6 +165,7 @@ def code_viewer(
     boxed: bool = True,
     style: Dict[str, Any] | None = None,
     container_style: Dict[str, Any] | None = None,
+    style_overrides: Dict[str, Any] | None = None,
 ) -> rx.Component:
     """Reusable code viewer with optional container chrome."""
 
@@ -208,7 +209,10 @@ def code_viewer(
     }
     if container_style:
         container.update(container_style)
-    return rx.box(content, **container)
+    box_props = container.copy()
+    if style_overrides:
+        box_props.update(style_overrides)
+    return rx.box(content, **box_props)
 
 def styled_input(**kwargs) -> rx.Component:
     """Styled input field with dark theme."""
@@ -843,41 +847,41 @@ def state_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
         ),
     )
 
-    outer_panel_props: Dict[str, Any] = {
+    outer_panel_style: Dict[str, Any] = {
         "width": "100%",
         "display": "flex",
-        "flex_direction": "column",
+        "flexDirection": "column",
         "gap": "12px",
         "flex": "1 1 auto",
     }
     if is_fullscreen:
-        outer_panel_props.update(
+        outer_panel_style.update(
             {
                 "height": "100%",
-                "min_height": "0",
+                "minHeight": "0",
             }
         )
     else:
-        outer_panel_props.update(
+        outer_panel_style.update(
             {
                 "height": panel_height,
-                "min_height": panel_height,
-                "max_height": panel_height,
+                "minHeight": panel_height,
+                "maxHeight": panel_height,
             }
         )
 
-    inner_box_props: Dict[str, Any] = {
+    inner_panel_style: Dict[str, Any] = {
         "flex": "1 1 auto",
         "width": "100%",
         "overflow": "auto",
-        "min_height": "0",
+        "minHeight": "0",
         "background": COLORS["bg_tertiary"],
         "border": f"1px solid {COLORS['border']}",
         "borderRadius": "8px",
         "padding": "12px",
     }
     if not is_fullscreen:
-        inner_box_props["height"] = "100%"
+        inner_panel_style["height"] = "100%"
 
     return card(
         section_header(
@@ -908,26 +912,24 @@ def state_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
         rx.cond(
             PlaygroundState.state_is_editing,
             rx.box(
-                rx.box(
-                    styled_text_area(
-                        value=PlaygroundState.state_editor,
-                        on_change=PlaygroundState.update_state_editor,
-                        font_family="'Fira Code', 'Monaco', 'Courier New', monospace",
-                        width="100%",
-                        overflow_y="auto",
-                        spell_check=False,
-                        height="100%",
-                    ),
-                    **inner_box_props,
+                styled_text_area(
+                    value=PlaygroundState.state_editor,
+                    on_change=PlaygroundState.update_state_editor,
+                    font_family="'Fira Code', 'Monaco', 'Courier New', monospace",
+                    overflow_y="auto",
+                    spell_check=False,
+                    height="100%",
+                    style=inner_panel_style,
                 ),
-                **outer_panel_props,
+                style=outer_panel_style,
             ),
             code_viewer(
                 PlaygroundState.state_dump,
                 "json",
                 "State is empty.",
                 font_size="12px",
-                container_style={**inner_box_props, **outer_panel_props},
+                container_style={**inner_panel_style},
+                style_overrides=outer_panel_style,
             ),
         ),
         rx.hstack(

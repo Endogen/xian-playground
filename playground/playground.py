@@ -923,13 +923,16 @@ def state_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
                 ),
                 style=outer_panel_style,
             ),
-            code_viewer(
-                PlaygroundState.state_dump,
-                "json",
-                "State is empty.",
-                font_size="12px",
-                container_style={**inner_panel_style},
-                style_overrides=outer_panel_style,
+            rx.box(
+                code_viewer(
+                    PlaygroundState.state_dump,
+                    "json",
+                    "State is empty.",
+                    font_size="12px",
+                    boxed=False,
+                    style={**inner_panel_style},
+                ),
+                style=outer_panel_style,
             ),
         ),
         rx.hstack(

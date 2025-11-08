@@ -791,28 +791,13 @@ def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component
             width="100%",
             background=COLORS["border"],
         ),
-        rx.box(
-            rx.hstack(
-                rx.icon(tag="terminal", size=18, color=COLORS["accent_cyan"]),
-                rx.heading(
-                    "Result",
-                    size="3",
-                    color=COLORS["text_primary"],
-                    font_weight="600",
-                ),
-                align_items="center",
-                gap="8px",
-            ),
-            rx.box(
-                code_viewer(
-                    PlaygroundState.run_result,
-                    "json",
-                    "Awaiting execution...",
-                    font_size="12px",
-                ),
-                **result_box_props,
-            ),
-            **result_panel_props,
+        code_viewer(
+            PlaygroundState.run_result,
+            "json",
+            "Awaiting execution...",
+            font_size="12px",
+            container_style=result_box_props,
+            style_overrides=result_panel_props,
         ),
         **card_kwargs,
     )

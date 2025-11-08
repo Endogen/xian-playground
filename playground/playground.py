@@ -740,24 +740,6 @@ def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component
         "flex_direction": "column",
     }
 
-    result_panel_props: Dict[str, Any] = {
-        "display": rx.cond(PlaygroundState.run_result == "", "none", "flex"),
-        "flex_direction": "column",
-        "gap": "12px",
-        "width": "100%",
-        "flex": "0 0 auto",
-        "max_height": "50vh" if is_fullscreen else "360px",
-    }
-    result_box_props: Dict[str, Any] = {
-        "width": "100%",
-        "overflow": "auto",
-        "background": COLORS["bg_tertiary"],
-        "border": f"1px solid {COLORS['border']}",
-        "borderRadius": "8px",
-        "padding": "12px",
-        "max_height": "50vh" if is_fullscreen else "300px",
-    }
-
     return card(
         section_header(
             "Execute Contract",
@@ -786,18 +768,42 @@ def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component
             on_click=PlaygroundState.run_contract,
             color_scheme="success",
         ),
-        rx.box(
-            height="1px",
-            width="100%",
-            background=COLORS["border"],
-        ),
-        code_viewer(
-            PlaygroundState.run_result,
-            "json",
-            "Awaiting execution...",
-            font_size="12px",
-            container_style=result_box_props,
-            style_overrides=result_panel_props,
+        rx.cond(
+            PlaygroundState.run_result == "",
+            rx.fragment(),
+            rx.vstack(
+                rx.hstack(
+                    rx.icon(tag="terminal", size=18, color=COLORS["accent_cyan"]),
+                    rx.heading(
+                        "Result",
+                        size="3",
+                        color=COLORS["text_primary"],
+                        font_weight="600",
+                    ),
+                    align_items="center",
+                    gap="8px",
+                    width="100%",
+                ),
+                code_viewer(
+                    PlaygroundState.run_result,
+                    "json",
+                    "Awaiting execution...",
+                    font_size="12px",
+                    boxed=False,
+                    style={
+                        "width": "100%",
+                        "fontSize": "12px",
+                        "maxHeight": "50vh" if is_fullscreen else "300px",
+                        "overflow": "auto",
+                        "border": f"1px solid {COLORS['border']}",
+                        "borderRadius": "8px",
+                        "padding": "12px",
+                        "background": COLORS["bg_tertiary"],
+                    },
+                ),
+                spacing="3",
+                width="100%",
+            ),
         ),
         **card_kwargs,
     )

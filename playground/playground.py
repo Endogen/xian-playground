@@ -156,8 +156,35 @@ def section_header(
     )
 
 
-def code_viewer(value: str, language: str, empty_message: str, font_size: str = "14px") -> rx.Component:
-    return rx.cond(
+def code_viewer(
+    value: str,
+    language: str,
+    empty_message: str,
+    font_size: str = "14px",
+    *,
+    boxed: bool = True,
+    style: Dict[str, Any] | None = None,
+    container_style: Dict[str, Any] | None = None,
+) -> rx.Component:
+    """Reusable code viewer with optional container chrome."""
+
+    def _viewer():
+        viewer_style = {
+            "margin": "0",
+            "fontSize": font_size,
+            "width": "100%",
+        }
+        if style:
+            viewer_style.update(style)
+        return rx.code_block(
+            value,
+            language=language,
+            wrap_lines=True,
+            style=viewer_style,
+            width="100%",
+        )
+
+    content = rx.cond(
         value == "",
         rx.text(
             empty_message,
@@ -165,18 +192,23 @@ def code_viewer(value: str, language: str, empty_message: str, font_size: str = 
             font_style="italic",
             font_size="14px",
         ),
-        rx.code_block(
-            value,
-            language=language,
-            wrap_lines=True,
-            width="100%",
-            style={
-                "height": "100%",
-                "margin": "0",
-                "fontSize": font_size,
-            },
-        ),
+        _viewer(),
     )
+
+    if not boxed:
+        return content
+
+    container = {
+        "width": "100%",
+        "overflow": "auto",
+        "background": COLORS["bg_tertiary"],
+        "border": f"1px solid {COLORS['border']}",
+        "borderRadius": "8px",
+        "padding": "12px",
+    }
+    if container_style:
+        container.update(container_style)
+    return rx.box(content, **container)
 
 def styled_input(**kwargs) -> rx.Component:
     """Styled input field with dark theme."""
@@ -578,18 +610,21 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
             }
         )
 
-    code_box_props: Dict[str, Any] = {
-        "flex": "1 1 auto",
-        "width": "100%",
-        "overflow": "auto",
-        "min_height": "0",
-        "background": COLORS["bg_tertiary"],
-        "border": f"1px solid {COLORS['border']}",
-        "borderRadius": "8px",
-        "padding": "12px",
-    }
-    if not is_fullscreen:
-        code_box_props["height"] = "100%"
+    def _code_viewer_style(is_full: bool, max_height: str) -> Dict[str, Any]:
+        style: Dict[str, Any] = {
+            "width": "100%",
+            "background": COLORS["bg_tertiary"],
+            "border": f"1px solid {COLORS['border']}",
+            "borderRadius": "8px",
+            "padding": "12px",
+            "overflow": "auto",
+        }
+        if is_full:
+            style["flex"] = "1 1 auto"
+            style["minHeight"] = "0"
+        else:
+            style["maxHeight"] = max_height
+        return style
 
     return card(
         section_header(
@@ -653,23 +688,24 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
                     align_items="center",
                     width="100%",
                 ),
-                rx.box(
-                    rx.cond(
-                        PlaygroundState.load_view_decompiled,
-                        code_viewer(
-                            PlaygroundState.loaded_contract_decompiled,
-                            "python",
-                            "# Decompiled source unavailable.",
-                            font_size="12px",
-                        ),
-                        code_viewer(
-                            PlaygroundState.loaded_contract_code,
-                            "python",
-                            "# Source unavailable.",
-                            font_size="12px",
-                        ),
+                rx.cond(
+                    PlaygroundState.load_view_decompiled,
+                    code_viewer(
+                        PlaygroundState.loaded_contract_decompiled,
+                        "python",
+                        "# Decompiled source unavailable.",
+                        font_size="12px",
+                        boxed=False,
+                        style=_code_viewer_style(is_fullscreen, panel_height),
                     ),
-                    **code_box_props,
+                    code_viewer(
+                        PlaygroundState.loaded_contract_code,
+                        "python",
+                        "# Source unavailable.",
+                        font_size="12px",
+                        boxed=False,
+                        style=_code_viewer_style(is_fullscreen, panel_height),
+                    ),
                 ),
                 **viewer_props,
             ),

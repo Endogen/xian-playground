@@ -922,17 +922,12 @@ def state_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
                 ),
                 **outer_panel_props,
             ),
-            rx.box(
-                rx.box(
-                    code_viewer(
-                        PlaygroundState.state_dump,
-                        "json",
-                        "State is empty.",
-                        font_size="12px",
-                    ),
-                    **inner_box_props,
-                ),
-                **outer_panel_props,
+            code_viewer(
+                PlaygroundState.state_dump,
+                "json",
+                "State is empty.",
+                font_size="12px",
+                container_style={**inner_box_props, **outer_panel_props},
             ),
         ),
         rx.hstack(

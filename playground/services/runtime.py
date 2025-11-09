@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import threading
-from contextlib import contextmanager
 from typing import Any, Dict
 
-from .contracting import ContractDetails, ContractExportInfo, ContractingService
+from .contracting import ContractDetails, ContractExportInfo
+from .worker import ContractingWorker, SessionServiceProxy
 from .sessions import SessionMetadata, SessionNotFoundError, SessionRepository
 
 
@@ -19,9 +19,9 @@ class SessionRuntimeManager:
 
     def __init__(self, repository: SessionRepository | None = None):
         self._repository = repository or SessionRepository()
-        self._services: dict[str, ContractingService] = {}
+        self._services: dict[str, SessionServiceProxy] = {}
+        self._workers: dict[str, ContractingWorker] = {}
         self._services_lock = threading.RLock()
-        self._runtime_lock = threading.RLock()
 
     @property
     def repository(self) -> SessionRepository:
@@ -65,48 +65,39 @@ class SessionRuntimeManager:
 
     def list_contracts(self, session_id: str) -> list[str]:
         service = self._get_service(session_id)
-        with self._runtime_section():
-            return service.list_contracts()
+        return service.list_contracts()
 
     def get_export_metadata(self, session_id: str, contract: str) -> list[ContractExportInfo]:
         service = self._get_service(session_id)
-        with self._runtime_section():
-            return service.get_export_metadata(contract)
+        return service.get_export_metadata(contract)
 
     def get_contract_details(self, session_id: str, contract: str) -> ContractDetails:
         service = self._get_service(session_id)
-        with self._runtime_section():
-            return service.get_contract_details(contract)
+        return service.get_contract_details(contract)
 
     def deploy(self, session_id: str, name: str, code: str) -> None:
         service = self._get_service(session_id)
-        with self._runtime_section():
-            service.deploy(name, code)
+        service.deploy(name, code)
 
     def call(self, session_id: str, contract: str, function: str, kwargs: Dict[str, Any]):
         service = self._get_service(session_id)
-        with self._runtime_section():
-            return service.call(contract, function, kwargs)
+        return service.call(contract, function, kwargs)
 
     def dump_state(self, session_id: str, show_internal: bool) -> str:
         service = self._get_service(session_id)
-        with self._runtime_section():
-            return service.dump_state(show_internal)
+        return service.dump_state(show_internal)
 
     def apply_state_snapshot(self, session_id: str, snapshot: Dict[str, Any]) -> None:
         service = self._get_service(session_id)
-        with self._runtime_section():
-            service.apply_state_snapshot(snapshot)
+        service.apply_state_snapshot(snapshot)
 
     def remove_contract(self, session_id: str, name: str) -> None:
         service = self._get_service(session_id)
-        with self._runtime_section():
-            service.remove_contract(name)
+        service.remove_contract(name)
 
     def reset_state(self, session_id: str) -> SessionMetadata:
         service = self._get_service(session_id)
-        with self._runtime_section():
-            service.reset_state()
+        service.reset_state()
         metadata = SessionMetadata.new(session_id)
         metadata.environment = service.snapshot_environment()
         metadata.updated_at = metadata.created_at
@@ -119,28 +110,24 @@ class SessionRuntimeManager:
 
     def set_environment_var(self, session_id: str, key: str, value: Any) -> Any:
         service = self._get_service(session_id)
-        with self._runtime_section():
-            result = service.set_environment_var(key, value)
+        result = service.set_environment_var(key, value)
         self.update_environment_snapshot(session_id)
         return result
 
     def remove_environment_var(self, session_id: str, key: str) -> None:
         service = self._get_service(session_id)
-        with self._runtime_section():
-            service.remove_environment_var(key)
+        service.remove_environment_var(key)
         self.update_environment_snapshot(session_id)
 
     def set_signer(self, session_id: str, signer: str) -> str:
         service = self._get_service(session_id)
-        with self._runtime_section():
-            updated = service.set_signer(signer)
+        updated = service.set_signer(signer)
         self.update_environment_snapshot(session_id)
         return updated
 
     def get_environment(self, session_id: str) -> Dict[str, Any]:
         service = self._get_service(session_id)
-        with self._runtime_section():
-            return service.get_environment()
+        return service.get_environment()
 
     def _reinitialize_service(self, session_id: str) -> ContractingService:
         """Dispose and recreate the ContractingService for a session."""
@@ -156,20 +143,27 @@ class SessionRuntimeManager:
             cached = self._services.get(session_id)
             if cached:
                 return cached
+
             metadata = self._repository.load_metadata(session_id)
             storage_home = self._repository.storage_home(session_id)
-            service = ContractingService(storage_home=storage_home)
-            service.hydrate_environment(metadata.environment)
-            self._services[session_id] = service
-            return service
+            worker = ContractingWorker(storage_home=storage_home)
+            worker.start()
+            proxy = SessionServiceProxy(worker)
+            proxy.hydrate_environment(metadata.environment)
+            self._services[session_id] = proxy
+            self._workers[session_id] = worker
+            return proxy
 
-    @contextmanager
-    def _runtime_section(self):
-        self._runtime_lock.acquire()
-        try:
-            yield
-        finally:
-            self._runtime_lock.release()
+    def shutdown(self):
+        with self._services_lock:
+            for proxy in self._services.values():
+                proxy.stop()
+            self._services.clear()
+            self._workers.clear()
 
 
 session_runtime = SessionRuntimeManager()
+
+import atexit
+
+atexit.register(session_runtime.shutdown)

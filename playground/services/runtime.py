@@ -135,13 +135,16 @@ class SessionRuntimeManager:
             self._services.pop(session_id, None)
         return self._get_service(session_id)
 
-    def _get_service(self, session_id: str) -> ContractingService:
+    def _get_service(self, session_id: str) -> SessionServiceProxy:
         session_id = SessionRepository._normalize_session_id(session_id)
         if not session_id:
             raise SessionNotFoundError("missing-session-id")
         with self._services_lock:
             cached = self._services.get(session_id)
             if cached:
+                worker = self._workers.get(session_id)
+                if worker and worker._dead:
+                    return self._restart_service(session_id)
                 return cached
 
             metadata = self._repository.load_metadata(session_id)
@@ -154,12 +157,47 @@ class SessionRuntimeManager:
             self._workers[session_id] = worker
             return proxy
 
+    def _restart_service(self, session_id: str) -> SessionServiceProxy:
+        old_worker = self._workers.pop(session_id, None)
+        if old_worker:
+            old_worker.stop()
+        old_proxy = self._services.pop(session_id, None)
+        if old_proxy:
+            try:
+                old_proxy.stop()
+            except Exception:
+                pass
+        metadata = self._repository.load_metadata(session_id)
+        storage_home = self._repository.storage_home(session_id)
+        worker = ContractingWorker(storage_home=storage_home)
+        worker.start()
+        proxy = SessionServiceProxy(worker)
+        proxy.hydrate_environment(metadata.environment)
+        self._services[session_id] = proxy
+        self._workers[session_id] = worker
+        return proxy
+
     def shutdown(self):
         with self._services_lock:
             for proxy in self._services.values():
                 proxy.stop()
             self._services.clear()
             self._workers.clear()
+
+    def close_session(self, session_id: str) -> None:
+        normalized = SessionRepository._normalize_session_id(session_id)
+        if not normalized:
+            return
+        with self._services_lock:
+            worker = self._workers.pop(normalized, None)
+            if worker:
+                worker.stop()
+            proxy = self._services.pop(normalized, None)
+            if proxy:
+                try:
+                    proxy.stop()
+                except Exception:
+                    pass
 
 
 session_runtime = SessionRuntimeManager()

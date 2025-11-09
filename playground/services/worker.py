@@ -14,11 +14,11 @@ class ContractingWorker(mp.Process):
     def __init__(self, storage_home: Path):
         super().__init__(daemon=True)
         self._storage_home = str(storage_home)
-        parent_conn, child_conn = mp.Pipe()
-        self._parent_conn: Connection = parent_conn
-        self._child_conn: Connection = child_conn
+        self._parent_conn: Connection | None = None
+        self._child_conn: Connection | None = None
         self._lock = None
         self._stopped = False
+        self._dead = False
 
     def run(self) -> None:
         from .contracting import ContractingService  # Local import for spawn safety
@@ -51,6 +51,9 @@ class ContractingWorker(mp.Process):
         conn.close()
 
     def start(self) -> None:
+        parent_conn, child_conn = mp.Pipe()
+        self._parent_conn = parent_conn
+        self._child_conn = child_conn
         super().start()
         self._lock = threading.Lock()
         self._lock = threading.Lock()
@@ -63,8 +66,15 @@ class ContractingWorker(mp.Process):
         if lock is None:
             raise RuntimeError("Worker lock not initialized.")
         with lock:
-            self._parent_conn.send((command, args, kwargs))
-            status, payload = self._parent_conn.recv()
+            conn = self._parent_conn
+            if conn is None:
+                raise RuntimeError("Worker connection not initialized.")
+            try:
+                conn.send((command, args, kwargs))
+                status, payload = conn.recv()
+            except (EOFError, BrokenPipeError):
+                self._dead = True
+                raise RuntimeError("Contracting worker became unavailable.") from None
         if status == "ok":
             return payload
         exc_type, message = payload
@@ -78,20 +88,27 @@ class ContractingWorker(mp.Process):
             if lock is None:
                 raise RuntimeError("Worker lock not initialized.")
             with lock:
-                self._parent_conn.send(("__shutdown__", (), {}))
-                self._parent_conn.recv()
+                conn = self._parent_conn
+                if conn is not None:
+                    conn.send(("__shutdown__", (), {}))
+                    conn.recv()
         except (EOFError, BrokenPipeError):
             pass
         finally:
-            self._parent_conn.close()
+            if self._parent_conn is not None:
+                self._parent_conn.close()
+            if self._child_conn is not None:
+                self._child_conn.close()
             self.join(timeout=2)
             if self.is_alive():
                 self.terminate()
             self._stopped = True
+            self._dead = True
 
     def __getstate__(self):
         state = self.__dict__.copy()
         state['_lock'] = None
+        state['_parent_conn'] = None
         return state
 
     def __setstate__(self, state):

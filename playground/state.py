@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import json
+import os
 import time
 from http.cookies import SimpleCookie
 from typing import List
@@ -25,6 +26,30 @@ from .services import (
 from .services.sessions import SESSION_UI_FIELDS
 from .services.environment import stringify_environment_value
 
+def _env_positive_int(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        value = int(raw, 0)
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
+def _format_bytes(value: int) -> str:
+    units = ["bytes", "KB", "MB", "GB", "TB"]
+    size = float(value)
+    for unit in units:
+        if size < 1024 or unit == units[-1]:
+            if unit == "bytes":
+                return f"{int(size)} {unit}"
+            return f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{value} bytes"
+
+
+STATE_IMPORT_MAX_BYTES = _env_positive_int("PLAYGROUND_STATE_IMPORT_MAX_BYTES", 10 * 1024 * 1024)
 ENVIRONMENT_FIELD_KEYS = [field["key"] for field in ENVIRONMENT_FIELDS]
 class PlaygroundState(rx.State):
     """Global Reflex state powering the playground UI."""
@@ -402,8 +427,16 @@ class PlaygroundState(rx.State):
             return []
 
         file = files[0]
+        limit = STATE_IMPORT_MAX_BYTES
+        friendly_limit = _format_bytes(limit)
         try:
-            content = await file.read()
+            declared_size = getattr(file, "size", None)
+            if declared_size is not None and declared_size > limit:
+                return [rx.toast.error(f"Import file exceeds the {friendly_limit} limit.")]
+
+            content = await file.read(limit + 1)
+            if len(content) > limit:
+                return [rx.toast.error(f"Import file exceeds the {friendly_limit} limit.")]
         except Exception as exc:
             return [rx.toast.error(f"Failed to read import: {exc}")]
         finally:

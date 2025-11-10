@@ -30,6 +30,11 @@ config = rx.Config(
 On the production server we override ports and other flags via CLI arguments (see
 “Running the app” below), so the same file works in both environments.
 
+### Environment variables
+
+- `PLAYGROUND_STATE_IMPORT_MAX_BYTES` – Maximum allowed size (in bytes) for uploaded state snapshots.
+  Defaults to 10 MB. Lower this if you want to guard a shared deployment against large uploads.
+
 ## Installation
 
 ```bash

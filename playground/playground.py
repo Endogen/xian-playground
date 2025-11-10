@@ -962,25 +962,13 @@ def log_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
         width="100%",
     )
 
-    description = rx.vstack(
-        rx.text(
-            "Recent deployments, executions, and state mutations.<",
-            color=COLORS["text_black"],
-            size="2",
-            line_height="1.6",
-            width="100%",
-            text_align="left",
-        ),
-        rx.text(
-            "Configure deterministic runtime context. Leave a field blank to fall back to live defaults.",
-            color=COLORS["text_black"],
-            size="2",
-            line_height="1.6",
-            width="100%",
-        ),
-        gap="8px",
+    description = rx.text(
+        "Recent deployments, executions, and state mutations.",
+        color=COLORS["text_black"],
+        size="2",
+        line_height="1.6",
         width="100%",
-        align_items="flex-start",
+        text_align="left",
     )
 
     return card(

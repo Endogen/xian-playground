@@ -34,6 +34,8 @@ On the production server we override ports and other flags via CLI arguments (se
 
 - `PLAYGROUND_STATE_IMPORT_MAX_BYTES` – Maximum allowed size (in bytes) for uploaded state snapshots.
   Defaults to 10 MB. Lower this if you want to guard a shared deployment against large uploads.
+- `PLAYGROUND_ACTIVITY_LOG_MAX_ENTRIES` – Number of activity log entries to retain in memory/client
+  state. Defaults to 50. Increase for debugging-heavy sessions; lower to minimize persisted state.
 
 ## Installation
 

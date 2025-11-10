@@ -31,6 +31,7 @@ COLORS = {
     "success": "#10b981",
     "warning": "#f59e0b",
     "error": "#ef4444",
+    "text_black": "#000000",
 }
 
 
@@ -213,6 +214,71 @@ def code_viewer(
     if style_overrides:
         box_props.update(style_overrides)
     return rx.box(content, **box_props)
+
+
+def log_entry_item(entry):
+    badge = rx.box(
+        entry["level_label"],
+        background=entry["color"],
+        color="white",
+        padding_x="8px",
+        padding_y="4px",
+        border_radius="999px",
+        font_size="11px",
+        font_weight="600",
+        letter_spacing="0.02em",
+        font_family="'Inter', sans-serif",
+    )
+    return rx.box(
+        rx.vstack(
+            rx.hstack(
+                badge,
+                rx.text(
+                    entry["timestamp"],
+                    color=COLORS["text_secondary"],
+                    size="1",
+                ),
+                rx.spacer(),
+                rx.text(
+                    entry["action"],
+                    color=COLORS["text_primary"],
+                    font_weight="600",
+                    size="2",
+                ),
+                align_items="center",
+                width="100%",
+                gap="8px",
+            ),
+            rx.text(
+                entry["message"],
+                color=COLORS["text_primary"],
+                size="2",
+            ),
+            rx.cond(
+                entry["detail"] == "",
+                rx.fragment(),
+                rx.text(
+                    entry["detail"],
+                    color=COLORS["text_secondary"],
+                    font_family="'Fira Code', 'Monaco', 'Courier New', monospace",
+                    font_size="12px",
+                    white_space="pre-wrap",
+                    background=COLORS["bg_secondary"],
+                    border=f"1px solid {COLORS['border']}",
+                    border_radius="8px",
+                    padding="10px",
+                    width="100%",
+                ),
+            ),
+            spacing="3",
+            width="100%",
+        ),
+        width="100%",
+        padding="12px",
+        border=f"1px solid {COLORS['border_subtle']}",
+        border_radius="10px",
+        background=COLORS["bg_secondary"],
+    )
 
 def styled_input(**kwargs) -> rx.Component:
     """Styled input field with dark theme."""
@@ -424,15 +490,29 @@ def expert_section() -> rx.Component:
         rx.accordion.root(
             rx.accordion.item(
                 header=rx.accordion.trigger(
-                    rx.hstack(
-                        rx.heading(
-                            "Execution Environment Variables",
-                            size="4",
-                            color=COLORS["text_primary"],
-                            font_weight="600",
+                    rx.box(
+                        rx.hstack(
+                            rx.icon(
+                                tag="settings",
+                                size=18,
+                                color=COLORS["text_black"],
+                            ),
+                            rx.heading(
+                                "Execution Environment Variables",
+                                size="5",
+                                color=COLORS["text_black"],
+                                font_weight="600",
+                            ),
+                            rx.spacer(),
+                            rx.accordion.icon(color=COLORS["accent_cyan"]),
+                            align_items="center",
+                            gap="8px",
+                            width="100%",
                         ),
-                        rx.spacer(),
-                        rx.accordion.icon(color=COLORS["accent_cyan"]),
+                        display="flex",
+                        flex_direction="column",
+                        gap="8px",
+                        width="100%",
                     ),
                     padding_y="8px",
                     padding_x="12px",
@@ -445,6 +525,8 @@ def expert_section() -> rx.Component:
                                 color=COLORS["text_primary"],
                                 size="2",
                                 line_height="1.6",
+                                width="100%",
+                                text_align="left",
                             ),
                             rx.text(
                                 "Note: ctx.caller is managed by the runtime during contract-to-contract calls and cannot be overridden here.",
@@ -809,6 +891,124 @@ def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component
     )
 
 
+def log_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
+    card_kwargs = card_kwargs or {}
+    is_fullscreen = card_kwargs.get("flex") is not None
+    body_height = "100%" if is_fullscreen else "360px"
+    clear_button = rx.cond(
+        PlaygroundState.log_entries == [],
+        rx.fragment(),
+        styled_button(
+            "Clear Log",
+            color_scheme="warning",
+            on_click=PlaygroundState.clear_logs,
+        ),
+    )
+
+    log_body = rx.box(
+        rx.vstack(
+            rx.hstack(
+                rx.spacer(),
+                clear_button,
+                width="100%",
+                align_items="center",
+            ),
+            rx.cond(
+                PlaygroundState.log_entries == [],
+                rx.text(
+                    "Actions you run will appear here with the latest at the bottom.",
+                    color=COLORS["text_secondary"],
+                    size="2",
+                ),
+                rx.box(
+                    rx.vstack(
+                        rx.foreach(
+                            PlaygroundState.log_entries,
+                            lambda entry, idx: log_entry_item(entry),
+                        ),
+                        gap="12px",
+                        width="100%",
+                    ),
+                    max_height=body_height,
+                    overflow="auto",
+                    width="100%",
+                    background=COLORS["bg_tertiary"],
+                    border=f"1px solid {COLORS['border']}",
+                    border_radius="12px",
+                    padding="12px",
+                ),
+            ),
+            spacing="3",
+            width="100%",
+        ),
+        width="100%",
+    )
+
+    header = rx.hstack(
+        rx.hstack(
+            rx.icon(tag="list", size=18, color=COLORS["text_black"]),
+            rx.heading(
+                "Activity Log",
+                size="5",
+                color=COLORS["text_black"],
+                font_weight="600",
+            ),
+            align_items="center",
+            gap="8px",
+        ),
+        rx.spacer(),
+        panel_expand_icon("log"),
+        align_items="center",
+        width="100%",
+    )
+
+    description = rx.vstack(
+        rx.text(
+            "Recent deployments, executions, and state mutations.<",
+            color=COLORS["text_black"],
+            size="2",
+            line_height="1.6",
+            width="100%",
+            text_align="left",
+        ),
+        rx.text(
+            "Configure deterministic runtime context. Leave a field blank to fall back to live defaults.",
+            color=COLORS["text_black"],
+            size="2",
+            line_height="1.6",
+            width="100%",
+        ),
+        gap="8px",
+        width="100%",
+        align_items="flex-start",
+    )
+
+    return card(
+        rx.accordion.root(
+            rx.accordion.item(
+                header=rx.accordion.trigger(
+                    rx.box(
+                        header,
+                        description,
+                        display="flex",
+                        flex_direction="column",
+                        gap="8px",
+                        width="100%",
+                    ),
+                ),
+                content=rx.accordion.content(log_body),
+                value="activity-log",
+            ),
+            type="single",
+            collapsible=True,
+            default_value="",
+            width="100%",
+            key=PlaygroundState.activity_log_view_key,
+        ),
+        **card_kwargs,
+    )
+
+
 def state_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
     card_kwargs = card_kwargs or {}
     is_fullscreen = card_kwargs.get("flex") is not None
@@ -1021,7 +1221,11 @@ def expanded_panel_content() -> rx.Component:
             rx.cond(
                 PlaygroundState.expanded_panel == "execute",
                 execution_section(card_kwargs=fullscreen_card_props),
-                state_section(card_kwargs=fullscreen_card_props),
+                rx.cond(
+                    PlaygroundState.expanded_panel == "state",
+                    state_section(card_kwargs=fullscreen_card_props),
+                    log_section(card_kwargs=fullscreen_card_props),
+                ),
             ),
         ),
     )
@@ -1147,8 +1351,9 @@ def index() -> rx.Component:
                         width="100%",
                         display=["block", "block", "none"],  # Show on mobile
                     ),
-                    # Full width expert section
+                    # Full width expert + log sections
                     expert_section(),
+                    _maybe_render_panel("log", log_section()),
                     spacing="5",
                     width="100%",
                 ),

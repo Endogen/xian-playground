@@ -2,26 +2,134 @@
 
 from __future__ import annotations
 
+import atexit
+import logging
+import os
 import threading
-from typing import Any, Dict
+import time
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Callable, Dict
 
 from .contracting import ContractDetails, ContractExportInfo
-from .worker import ContractingWorker, SessionServiceProxy
 from .sessions import SessionMetadata, SessionNotFoundError, SessionRepository
+from .worker import ContractingWorker, SessionServiceProxy
 
 
 SESSION_COOKIE_NAME = "xian_session_id"
 SESSION_COOKIE_MAX_AGE = 30 * 24 * 60 * 60  # 30 days
 
+logger = logging.getLogger(__name__)
+
+
+def _env_float(name: str, default: float) -> float:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except ValueError:
+        return default
+
+
+def _env_int(name: str, default: int) -> int:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
+DEFAULT_MAX_IDLE_SECONDS = _env_float("PLAYGROUND_SESSION_MAX_IDLE_SECONDS", 900.0)
+DEFAULT_REAPER_INTERVAL_SECONDS = _env_float("PLAYGROUND_SESSION_REAPER_INTERVAL", 30.0)
+DEFAULT_MAX_RESIDENT_WORKERS = _env_int("PLAYGROUND_SESSION_MAX_WORKERS", 16)
+
+WorkerFactory = Callable[[Path], ContractingWorker]
+
+
+@dataclass
+class SessionServiceEntry:
+    worker: ContractingWorker
+    proxy: SessionServiceProxy | None
+    last_used: float
+    inflight: int = 0
+    _lock: threading.Lock = field(default_factory=threading.Lock, init=False)
+    _condition: threading.Condition = field(init=False)
+
+    def __post_init__(self) -> None:
+        self._condition = threading.Condition(self._lock)
+
+    def mark_used(self) -> None:
+        with self._condition:
+            self.last_used = time.time()
+
+    def begin_invocation(self) -> None:
+        with self._condition:
+            self.inflight += 1
+
+    def end_invocation(self) -> None:
+        with self._condition:
+            self.inflight = max(0, self.inflight - 1)
+            self.last_used = time.time()
+            if self.inflight == 0:
+                self._condition.notify_all()
+
+    def wait_for_idle(self, timeout: float | None = None) -> bool:
+        deadline = time.time() + timeout if timeout is not None else None
+        with self._condition:
+            while self.inflight > 0:
+                remaining = None if deadline is None else deadline - time.time()
+                if remaining is not None and remaining <= 0:
+                    return False
+                self._condition.wait(timeout=remaining)
+        return True
+
+    def snapshot(self) -> tuple[int, float]:
+        with self._condition:
+            return self.inflight, self.last_used
+
+    def is_idle(self, now: float, idle_seconds: float) -> bool:
+        with self._condition:
+            if self.inflight > 0:
+                return False
+            return (now - self.last_used) >= idle_seconds
+
 
 class SessionRuntimeManager:
     """Coordinate per-session ContractingService instances + metadata."""
 
-    def __init__(self, repository: SessionRepository | None = None):
+    def __init__(
+        self,
+        repository: SessionRepository | None = None,
+        *,
+        max_idle_seconds: float | None = None,
+        max_resident_workers: int | None = None,
+        reap_interval_seconds: float | None = None,
+        worker_factory: WorkerFactory | None = None,
+    ):
         self._repository = repository or SessionRepository()
-        self._services: dict[str, SessionServiceProxy] = {}
-        self._workers: dict[str, ContractingWorker] = {}
+        self._entries: dict[str, SessionServiceEntry] = {}
         self._services_lock = threading.RLock()
+        self._worker_factory: WorkerFactory = worker_factory or ContractingWorker
+        self._max_idle_seconds = (
+            DEFAULT_MAX_IDLE_SECONDS if max_idle_seconds is None else max_idle_seconds
+        )
+        self._max_resident_workers = (
+            DEFAULT_MAX_RESIDENT_WORKERS
+            if max_resident_workers is None
+            else max_resident_workers
+        )
+        self._reaper_interval = (
+            DEFAULT_REAPER_INTERVAL_SECONDS
+            if reap_interval_seconds is None
+            else reap_interval_seconds
+        )
+        self._reaper_stop = threading.Event()
+        self._reaper_thread: threading.Thread | None = None
+        if self._max_idle_seconds > 0 and self._reaper_interval > 0:
+            self._start_reaper()
 
     @property
     def repository(self) -> SessionRepository:
@@ -129,79 +237,146 @@ class SessionRuntimeManager:
         service = self._get_service(session_id)
         return service.get_environment()
 
-    def _reinitialize_service(self, session_id: str) -> ContractingService:
-        """Dispose and recreate the ContractingService for a session."""
+    def shutdown(self) -> None:
+        self._stop_reaper()
         with self._services_lock:
-            self._services.pop(session_id, None)
-        return self._get_service(session_id)
-
-    def _get_service(self, session_id: str) -> SessionServiceProxy:
-        session_id = SessionRepository._normalize_session_id(session_id)
-        if not session_id:
-            raise SessionNotFoundError("missing-session-id")
-        with self._services_lock:
-            cached = self._services.get(session_id)
-            if cached:
-                worker = self._workers.get(session_id)
-                if worker and worker._dead:
-                    return self._restart_service(session_id)
-                return cached
-
-            metadata = self._repository.load_metadata(session_id)
-            storage_home = self._repository.storage_home(session_id)
-            worker = ContractingWorker(storage_home=storage_home)
-            worker.start()
-            proxy = SessionServiceProxy(worker)
-            proxy.hydrate_environment(metadata.environment)
-            self._services[session_id] = proxy
-            self._workers[session_id] = worker
-            return proxy
-
-    def _restart_service(self, session_id: str) -> SessionServiceProxy:
-        old_worker = self._workers.pop(session_id, None)
-        if old_worker:
-            old_worker.stop()
-        old_proxy = self._services.pop(session_id, None)
-        if old_proxy:
-            try:
-                old_proxy.stop()
-            except Exception:
-                pass
-        metadata = self._repository.load_metadata(session_id)
-        storage_home = self._repository.storage_home(session_id)
-        worker = ContractingWorker(storage_home=storage_home)
-        worker.start()
-        proxy = SessionServiceProxy(worker)
-        proxy.hydrate_environment(metadata.environment)
-        self._services[session_id] = proxy
-        self._workers[session_id] = worker
-        return proxy
-
-    def shutdown(self):
-        with self._services_lock:
-            for proxy in self._services.values():
-                proxy.stop()
-            self._services.clear()
-            self._workers.clear()
+            entries = list(self._entries.values())
+            self._entries.clear()
+        for entry in entries:
+            self._stop_entry(entry)
 
     def close_session(self, session_id: str) -> None:
         normalized = SessionRepository._normalize_session_id(session_id)
         if not normalized:
             return
         with self._services_lock:
-            worker = self._workers.pop(normalized, None)
-            if worker:
-                worker.stop()
-            proxy = self._services.pop(normalized, None)
-            if proxy:
-                try:
-                    proxy.stop()
-                except Exception:
-                    pass
+            entry = self._entries.pop(normalized, None)
+        if entry:
+            self._stop_entry(entry)
+
+    def _start_reaper(self) -> None:
+        if self._reaper_thread is not None:
+            return
+        self._reaper_thread = threading.Thread(
+            target=self._reaper_loop,
+            name="session-worker-reaper",
+            daemon=True,
+        )
+        self._reaper_thread.start()
+
+    def _stop_reaper(self) -> None:
+        if self._reaper_thread is None:
+            return
+        self._reaper_stop.set()
+        self._reaper_thread.join(timeout=self._reaper_interval or 1.0)
+        self._reaper_thread = None
+
+    def _reaper_loop(self) -> None:
+        while not self._reaper_stop.wait(self._reaper_interval):
+            try:
+                self._reap_idle_workers()
+            except Exception:  # noqa: BLE001
+                logger.exception("Failed to reap idle session workers.")
+
+    def _reap_idle_workers(self) -> None:
+        if self._max_idle_seconds <= 0:
+            return
+        now = time.time()
+        victims: list[SessionServiceEntry] = []
+        with self._services_lock:
+            for session_id, entry in list(self._entries.items()):
+                if entry.is_idle(now, self._max_idle_seconds):
+                    victims.append(entry)
+                    self._entries.pop(session_id, None)
+        for entry in victims:
+            self._stop_entry(entry)
+
+    def _get_service(self, session_id: str) -> SessionServiceProxy:
+        normalized = SessionRepository._normalize_session_id(session_id)
+        if not normalized:
+            raise SessionNotFoundError("missing-session-id")
+        entry = self._get_or_create_entry(normalized)
+        entry.mark_used()
+        if entry.proxy is None:
+            raise RuntimeError("Session worker proxy is not initialized.")
+        return entry.proxy
+
+    def _get_or_create_entry(self, session_id: str) -> SessionServiceEntry:
+        entry_to_stop: SessionServiceEntry | None = None
+        with self._services_lock:
+            entry = self._entries.get(session_id)
+            if entry and entry.worker._dead:
+                self._entries.pop(session_id, None)
+                entry_to_stop = entry
+                entry = None
+            if entry:
+                return entry
+        if entry_to_stop:
+            self._stop_entry(entry_to_stop)
+        new_entry = self._create_entry(session_id)
+        with self._services_lock:
+            entry = self._entries.get(session_id)
+            if entry is None:
+                self._entries[session_id] = new_entry
+                entry = new_entry
+            else:
+                self._stop_entry(new_entry)
+        if entry is new_entry:
+            self._trim_workers_if_needed()
+        return entry
+
+    def _trim_workers_if_needed(self) -> None:
+        limit = self._max_resident_workers
+        if limit is None or limit <= 0:
+            return
+        victims: list[SessionServiceEntry] = []
+        with self._services_lock:
+            surplus = len(self._entries) - limit
+            if surplus <= 0:
+                return
+            snapshots: list[tuple[float, str, SessionServiceEntry]] = []
+            for session_id, entry in self._entries.items():
+                inflight, last_used = entry.snapshot()
+                if inflight == 0:
+                    snapshots.append((last_used, session_id, entry))
+            snapshots.sort(key=lambda item: item[0])
+            for _, session_id, entry in snapshots:
+                if surplus <= 0:
+                    break
+                victims.append(entry)
+                self._entries.pop(session_id, None)
+                surplus -= 1
+            if surplus > 0:
+                logger.warning(
+                    "Unable to evict enough idle workers to honor PLAYGROUND_SESSION_MAX_WORKERS=%s",
+                    limit,
+                )
+        for entry in victims:
+            self._stop_entry(entry)
+
+    def _create_entry(self, session_id: str) -> SessionServiceEntry:
+        metadata = self._repository.load_metadata(session_id)
+        storage_home = self._repository.storage_home(session_id)
+        worker = self._worker_factory(storage_home=storage_home)
+        worker.start()
+        entry = SessionServiceEntry(worker=worker, proxy=None, last_used=time.time())
+        proxy = SessionServiceProxy(
+            worker,
+            before_invoke=entry.begin_invocation,
+            after_invoke=entry.end_invocation,
+        )
+        entry.proxy = proxy
+        proxy.hydrate_environment(metadata.environment)
+        return entry
+
+    def _stop_entry(self, entry: SessionServiceEntry) -> None:
+        entry.wait_for_idle()
+        try:
+            entry.worker.stop()
+        except Exception:  # noqa: BLE001
+            logger.exception("Failed to stop contracting worker cleanly.")
 
 
 session_runtime = SessionRuntimeManager()
-
-import atexit
 
 atexit.register(session_runtime.shutdown)

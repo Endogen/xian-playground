@@ -119,12 +119,28 @@ class ContractingWorker(mp.Process):
 class SessionServiceProxy:
     """Thin proxy forwarding attribute access to the worker process."""
 
-    def __init__(self, worker: ContractingWorker):
+    def __init__(
+        self,
+        worker: ContractingWorker,
+        *,
+        before_invoke: Callable[[], None] | None = None,
+        after_invoke: Callable[[], None] | None = None,
+    ):
         self._worker = worker
+        self._before_invoke = before_invoke
+        self._after_invoke = after_invoke
 
     def __getattr__(self, item: str):
         def method(*args, **kwargs):
-            return self._worker.invoke(item, *args, **kwargs)
+            invoked = False
+            if self._before_invoke:
+                self._before_invoke()
+                invoked = True
+            try:
+                return self._worker.invoke(item, *args, **kwargs)
+            finally:
+                if invoked and self._after_invoke:
+                    self._after_invoke()
 
         return method
 

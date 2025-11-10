@@ -1,0 +1,99 @@
+from __future__ import annotations
+
+import tempfile
+import time
+import unittest
+from pathlib import Path
+from typing import Any
+
+from playground.services.runtime import SessionRepository, SessionRuntimeManager
+
+
+class FakeWorker:
+    """Test double for ContractingWorker that runs in-process."""
+
+    instances: list["FakeWorker"] = []
+
+    def __init__(self, storage_home: Path):
+        self.storage_home = storage_home
+        self.started = False
+        self.stopped = False
+        self._dead = False
+        self._environment: dict[str, Any] = {}
+        FakeWorker.instances.append(self)
+
+    def start(self) -> None:
+        self.started = True
+
+    def invoke(self, method: str, *args, **kwargs):
+        handler = getattr(self, method)
+        return handler(*args, **kwargs)
+
+    def hydrate_environment(self, environment: dict[str, Any]) -> None:
+        self._environment = dict(environment)
+
+    def snapshot_environment(self) -> dict[str, Any]:
+        return dict(self._environment)
+
+    def get_environment(self) -> dict[str, Any]:
+        return dict(self._environment)
+
+    def stop(self) -> None:
+        self.stopped = True
+        self._dead = True
+
+
+class SessionRuntimeWorkerLifecycleTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        FakeWorker.instances = []
+        self.repo = SessionRepository(root=Path(self._tmp.name))
+
+    def _manager(self, **kwargs) -> SessionRuntimeManager:
+        manager = SessionRuntimeManager(
+            repository=self.repo,
+            worker_factory=FakeWorker,
+            **kwargs,
+        )
+        self.addCleanup(manager.shutdown)
+        return manager
+
+    def test_idle_workers_are_reaped(self) -> None:
+        manager = self._manager(max_idle_seconds=0.1, reap_interval_seconds=0.05, max_resident_workers=8)
+        session = manager.create_session()
+        manager.get_environment(session.session_id)
+        self.assertFalse(FakeWorker.instances[0].stopped)
+
+        deadline = time.time() + 2
+        while time.time() < deadline and not FakeWorker.instances[0].stopped:
+            time.sleep(0.05)
+
+        self.assertTrue(
+            FakeWorker.instances[0].stopped,
+            "Idle worker should be stopped by the reaper.",
+        )
+
+    def test_max_worker_trim_drops_oldest_idle_session(self) -> None:
+        manager = self._manager(
+            max_idle_seconds=-1,
+            reap_interval_seconds=1,
+            max_resident_workers=1,
+        )
+        first = manager.create_session()
+        manager.get_environment(first.session_id)
+        second = manager.create_session()
+        manager.get_environment(second.session_id)
+
+        self.assertTrue(
+            FakeWorker.instances[0].stopped,
+            "Oldest idle worker should be evicted to honor the max worker limit.",
+        )
+        self.assertFalse(
+            FakeWorker.instances[1].stopped,
+            "Newest worker should remain active.",
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

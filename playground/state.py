@@ -234,6 +234,7 @@ class PlaygroundState(rx.State):
         if value != self.selected_contract:
             self.selected_contract = value
             self.kwargs_input = DEFAULT_KWARGS_INPUT
+            self.run_result = ""
         return [type(self).refresh_functions]
 
     def change_selected_function(self, value: str):

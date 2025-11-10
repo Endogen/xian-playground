@@ -3,6 +3,8 @@ from __future__ import annotations
 import atexit
 import multiprocessing as mp
 import threading
+import traceback
+from dataclasses import dataclass
 from multiprocessing.connection import Connection
 from pathlib import Path
 from typing import Any, Callable
@@ -46,7 +48,7 @@ class ContractingWorker(mp.Process):
                 result = target(*args, **kwargs)
                 conn.send(("ok", result))
             except Exception as exc:  # noqa: BLE001
-                conn.send(("error", (exc.__class__.__name__, str(exc))))
+                conn.send(("error", _serialize_exception(exc)))
 
         conn.close()
 
@@ -77,8 +79,8 @@ class ContractingWorker(mp.Process):
                 raise RuntimeError("Contracting worker became unavailable.") from None
         if status == "ok":
             return payload
-        exc_type, message = payload
-        raise RuntimeError(f"{command} failed: {exc_type}: {message}")
+        remote = RemoteExceptionPayload.from_raw(payload)
+        raise ContractWorkerInvocationError(command=command, payload=remote)
 
     def stop(self) -> None:
         if self._stopped:
@@ -146,3 +148,64 @@ class SessionServiceProxy:
 
     def stop(self) -> None:
         self._worker.stop()
+
+
+@dataclass(slots=True)
+class RemoteExceptionPayload:
+    """Structured representation of an exception raised inside the worker process."""
+
+    type_name: str
+    module: str
+    message: str
+    traceback_text: str
+
+    @classmethod
+    def from_raw(cls, payload: Any) -> "RemoteExceptionPayload":
+        if isinstance(payload, dict):
+            return cls(
+                type_name=str(payload.get("exc_type", "Exception")),
+                module=str(payload.get("exc_module", "")),
+                message=str(payload.get("message", "")),
+                traceback_text=str(payload.get("traceback", "")),
+            )
+        if isinstance(payload, tuple) and len(payload) == 2:
+            type_name, message = payload
+            return cls(
+                type_name=str(type_name),
+                module="",
+                message=str(message),
+                traceback_text="",
+            )
+        return cls(
+            type_name="Exception",
+            module="",
+            message=str(payload),
+            traceback_text="",
+        )
+
+
+def _serialize_exception(exc: Exception) -> dict[str, str]:
+    formatted = "".join(traceback.format_exception(exc.__class__, exc, exc.__traceback__))
+    return {
+        "exc_type": exc.__class__.__name__,
+        "exc_module": exc.__class__.__module__,
+        "message": str(exc),
+        "traceback": formatted,
+    }
+
+
+class ContractWorkerInvocationError(RuntimeError):
+    """Raised when the contracting worker reports an exception."""
+
+    def __init__(self, *, command: str, payload: RemoteExceptionPayload):
+        self.command = command
+        self.remote_type = payload.type_name
+        self.remote_module = payload.module
+        self.remote_message = payload.message
+        self.remote_traceback = payload.traceback_text
+        display = payload.message or payload.type_name
+        super().__init__(f"{command} failed: {payload.type_name}: {display}")
+
+    def pretty_remote_traceback(self) -> str:
+        """Return the remote traceback or a synthesized message."""
+        return self.remote_traceback or f"{self.remote_type}: {self.remote_message}"

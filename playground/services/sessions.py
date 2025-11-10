@@ -15,7 +15,7 @@ from ..defaults import DEFAULT_CONTRACT, DEFAULT_CONTRACT_NAME, DEFAULT_KWARGS_I
 
 
 SESSION_FILE_NAME = "session.json"
-SESSION_UI_FIELDS = {
+SESSION_UI_FIELDS: tuple[str, ...] = (
     "code_editor",
     "contract_name",
     "kwargs_input",
@@ -25,7 +25,7 @@ SESSION_UI_FIELDS = {
     "load_selected_contract",
     "function_name",
     "show_internal_state",
-}
+)
 
 DEFAULT_UI_STATE: Dict[str, Any] = {
     "code_editor": DEFAULT_CONTRACT,

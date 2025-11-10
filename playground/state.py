@@ -22,22 +22,10 @@ from .services import (
     lint_contract as run_lint,
     session_runtime,
 )
+from .services.sessions import SESSION_UI_FIELDS
 from .services.environment import stringify_environment_value
 
 ENVIRONMENT_FIELD_KEYS = [field["key"] for field in ENVIRONMENT_FIELDS]
-SESSION_UI_FIELDS = [
-    "code_editor",
-    "contract_name",
-    "kwargs_input",
-    "load_view_decompiled",
-    "expanded_panel",
-    "selected_contract",
-    "load_selected_contract",
-    "function_name",
-    "show_internal_state",
-]
-
-
 class PlaygroundState(rx.State):
     """Global Reflex state powering the playground UI."""
 

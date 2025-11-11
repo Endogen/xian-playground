@@ -30,6 +30,21 @@ config = rx.Config(
 On the production server we override ports and other flags via CLI arguments (see
 “Running the app” below), so the same file works in both environments.
 
+### Environment variables
+
+- `PLAYGROUND_STATE_IMPORT_MAX_BYTES` – Maximum allowed size (in bytes) for uploaded state snapshots.
+  Defaults to 10 MB. Lower this if you want to guard a shared deployment against large uploads.
+- `PLAYGROUND_ACTIVITY_LOG_MAX_ENTRIES` – Number of activity log entries to retain in memory/client
+  state. Defaults to 50. Increase for debugging-heavy sessions; lower to minimize persisted state.
+- `PLAYGROUND_SESSION_LOCK_IDLE_SECONDS` – How long (seconds) an unused session metadata lock stays cached
+  before being dropped. Defaults to 600 s; lower it if you expect many short-lived sessions.
+- `PLAYGROUND_SESSION_LOCK_CACHE` – Maximum number of session metadata locks held in memory at once (default 2048).
+  Excess idle locks are evicted LRU-style.
+- `PLAYGROUND_SESSION_TTL_SECONDS` – How long (seconds) a session may remain idle on disk before it is
+  automatically deleted (default 7 d). Set to 0 to keep sessions forever.
+- `PLAYGROUND_WORKER_RPC_TIMEOUT` – Maximum time (seconds) to wait for a worker process to reply to a request.
+  Defaults to 30 s. Set to 0 to disable the timeout (not recommended in production).
+
 ## Installation
 
 ```bash

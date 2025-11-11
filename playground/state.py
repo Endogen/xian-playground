@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import ast
 import json
+import os
 import time
 from http.cookies import SimpleCookie
-from typing import List
+from typing import Dict, List
 from urllib.parse import quote
 
 import reflex as rx
@@ -22,20 +23,43 @@ from .services import (
     lint_contract as run_lint,
     session_runtime,
 )
+from .services.sessions import SESSION_UI_FIELDS
+from .services.worker import ContractWorkerInvocationError
 from .services.environment import stringify_environment_value
 
+
+def _env_positive_int(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        value = int(raw, 0)
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
+def _format_bytes(value: int) -> str:
+    units = ["bytes", "KB", "MB", "GB", "TB"]
+    size = float(value)
+    for unit in units:
+        if size < 1024 or unit == units[-1]:
+            if unit == "bytes":
+                return f"{int(size)} {unit}"
+            return f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{value} bytes"
+
+
+STATE_IMPORT_MAX_BYTES = _env_positive_int("PLAYGROUND_STATE_IMPORT_MAX_BYTES", 10 * 1024 * 1024)
+ACTIVITY_LOG_MAX_ENTRIES = _env_positive_int("PLAYGROUND_ACTIVITY_LOG_MAX_ENTRIES", 50)
+LOG_LEVEL_COLORS = {
+    "info": "#3b82f6",
+    "success": "#10b981",
+    "error": "#ef4444",
+    "warning": "#f59e0b",
+}
 ENVIRONMENT_FIELD_KEYS = [field["key"] for field in ENVIRONMENT_FIELDS]
-SESSION_UI_FIELDS = [
-    "code_editor",
-    "contract_name",
-    "kwargs_input",
-    "load_view_decompiled",
-    "expanded_panel",
-    "selected_contract",
-    "load_selected_contract",
-    "function_name",
-    "show_internal_state",
-]
 
 
 class PlaygroundState(rx.State):
@@ -79,6 +103,9 @@ class PlaygroundState(rx.State):
     run_result: str = ""
     state_dump: str = "{}"
     _saved_code_snapshot: str = DEFAULT_CONTRACT
+    log_entries: List[Dict[str, str]] = []
+    _state_edit_snapshot: str = ""
+    activity_log_view_key: str = "activity-log"
 
     def on_load(self):
         session_id = self._cookie_session_id()
@@ -100,6 +127,7 @@ class PlaygroundState(rx.State):
         }
         self.session_error = ""
         self._last_ui_snapshot_ts = time.time()
+        self._refresh_activity_log_panel()
         return [
             type(self).refresh_contracts,
             type(self).refresh_state,
@@ -151,6 +179,101 @@ class PlaygroundState(rx.State):
         session_runtime.save_ui_state(self.session_id, payload)
         if include_code:
             self._saved_code_snapshot = self.code_editor
+
+    def _refresh_activity_log_panel(self):
+        seed = f"{self.session_id or 'log'}-{time.time():.6f}"
+        self.activity_log_view_key = seed
+
+    def _log_event(
+        self,
+        level: str,
+        action: str,
+        message: str,
+        detail: str = "",
+    ) -> None:
+        normalized_level = (level or "").lower() or "info"
+        detail = (detail or "").strip()
+        if len(detail) > 4000:
+            detail = detail[:4000] + "…"
+        entry = {
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
+            "level": normalized_level,
+            "level_label": normalized_level.title(),
+            "action": action,
+            "message": message,
+            "detail": detail,
+            "color": LOG_LEVEL_COLORS.get(normalized_level, LOG_LEVEL_COLORS["info"]),
+        }
+        entries = [entry] + self.log_entries
+        if len(entries) > ACTIVITY_LOG_MAX_ENTRIES:
+            entries = entries[:ACTIVITY_LOG_MAX_ENTRIES]
+        self.log_entries = entries
+
+    def _log_success(self, action: str, message: str, detail: str = "") -> None:
+        self._log_event("success", action, message, detail)
+
+    def _log_worker_failure(
+        self,
+        action: str,
+        prefix: str,
+        exc: ContractWorkerInvocationError,
+        extra_lines: Dict[str, str] | None = None,
+    ) -> str:
+        core = exc.remote_message or exc.remote_type
+        message = f"{prefix}{core}"
+        detail = f"{exc.remote_type}: {exc.remote_message}".strip()
+        if extra_lines:
+            suffix = "\n".join(f"{key}: {value}" for key, value in extra_lines.items())
+            detail = f"{detail}\n{suffix}"
+        self._log_event("error", action, message, detail)
+        return message
+
+    def _log_generic_failure(
+        self,
+        action: str,
+        prefix: str,
+        exc: Exception,
+        detail_suffix: str | None = None,
+    ) -> str:
+        message = f"{prefix}{exc}"
+        detail = detail_suffix or ""
+        self._log_event("error", action, message, detail)
+        return message
+
+    def _format_log_json(self, data: object, *, limit: int = 160) -> str:
+        try:
+            text = json.dumps(data, sort_keys=True)
+        except Exception:
+            text = str(data)
+        text = text.strip()
+        if len(text) > limit:
+            text = text[:limit] + "…"
+        return text
+
+    def _summarize_state_diff(
+        self,
+        before: Dict[str, object] | None,
+        after: Dict[str, object] | None,
+        limit: int = 5,
+    ) -> str:
+        before = before or {}
+        after = after or {}
+        changes: list[str] = []
+        changed_keys = [key for key in sorted(set(before) | set(after)) if before.get(key) != after.get(key)]
+        total = len(changed_keys)
+        for key in changed_keys[:limit]:
+            before_display = self._format_log_json(before.get(key))
+            after_display = self._format_log_json(after.get(key))
+            changes.append(f"{key}: {before_display} -> {after_display}")
+        if total > limit:
+            changes.append(f"... and {total - limit} more change(s)")
+        if not changes:
+            changes.append("State updated without detectable key changes.")
+        return "\n".join(changes)
+
+    def clear_logs(self):
+        self.log_entries = []
+        return [rx.toast.success("Activity log cleared.")]
 
     def _require_session(self) -> str | None:
         if not self.session_id:
@@ -357,8 +480,12 @@ class PlaygroundState(rx.State):
             return []
         try:
             metadata = session_runtime.reset_state(session_id)
+        except ContractWorkerInvocationError as exc:
+            message = self._log_worker_failure("reset_state", "Failed to clear state: ", exc)
+            return [rx.toast.error(message)]
         except Exception as exc:
-            return [rx.toast.error(f"Failed to clear state: {exc}")]
+            message = self._log_generic_failure("reset_state", "Failed to clear state: ", exc)
+            return [rx.toast.error(message)]
 
         env = metadata.environment
 
@@ -385,6 +512,7 @@ class PlaygroundState(rx.State):
             for key in ENVIRONMENT_FIELD_KEYS
         }
         self._save_session(include_code=True)
+        self._log_success("reset_state", "All contracts and state cleared.")
 
         return [
             rx.toast.success("All contracts and state cleared."),
@@ -414,8 +542,16 @@ class PlaygroundState(rx.State):
             return []
 
         file = files[0]
+        limit = STATE_IMPORT_MAX_BYTES
+        friendly_limit = _format_bytes(limit)
         try:
-            content = await file.read()
+            declared_size = getattr(file, "size", None)
+            if declared_size is not None and declared_size > limit:
+                return [rx.toast.error(f"Import file exceeds the {friendly_limit} limit.")]
+
+            content = await file.read(limit + 1)
+            if len(content) > limit:
+                return [rx.toast.error(f"Import file exceeds the {friendly_limit} limit.")]
         except Exception as exc:
             return [rx.toast.error(f"Failed to read import: {exc}")]
         finally:
@@ -436,9 +572,14 @@ class PlaygroundState(rx.State):
 
         try:
             session_runtime.apply_state_snapshot(session_id, payload)
+        except ContractWorkerInvocationError as exc:
+            message = self._log_worker_failure("import_state", "Failed to import state: ", exc)
+            return [rx.toast.error(message)]
         except Exception as exc:
-            return [rx.toast.error(f"Failed to import state: {exc}")]
+            message = self._log_generic_failure("import_state", "Failed to import state: ", exc)
+            return [rx.toast.error(message)]
         self._save_session()
+        self._log_success("import_state", "State imported from JSON upload.")
 
         return [
             rx.toast.success("State imported."),
@@ -457,8 +598,20 @@ class PlaygroundState(rx.State):
 
         try:
             session_runtime.remove_contract(session_id, target)
+        except ContractWorkerInvocationError as exc:
+            message = self._log_worker_failure(
+                "remove_contract",
+                f"Failed to remove contract '{target}': ",
+                exc,
+            )
+            return [rx.toast.error(message)]
         except Exception as exc:
-            return [rx.toast.error(f"Failed to remove contract '{target}': {exc}")]
+            message = self._log_generic_failure(
+                "remove_contract",
+                f"Failed to remove contract '{target}': ",
+                exc,
+            )
+            return [rx.toast.error(message)]
 
         if self.selected_contract == target:
             self.selected_contract = ""
@@ -475,6 +628,7 @@ class PlaygroundState(rx.State):
 
         self.run_result = ""
         self._save_session()
+        self._log_success("remove_contract", f"Contract '{target}' removed.")
 
         return [
             rx.toast.success(f"Contract '{target}' removed."),
@@ -507,13 +661,20 @@ class PlaygroundState(rx.State):
             return []
         try:
             session_runtime.deploy(session_id, self.contract_name, self.code_editor)
+        except ContractWorkerInvocationError as exc:
+            self.deploy_is_error = True
+            message = self._log_worker_failure("deploy", "Deploy failed: ", exc)
+            self.deploy_message = message
+            return [rx.toast.error(self.deploy_message)]
         except Exception as exc:
             self.deploy_is_error = True
-            self.deploy_message = f"Deploy failed: {exc}"
+            message = self._log_generic_failure("deploy", "Deploy failed: ", exc)
+            self.deploy_message = message
             return [rx.toast.error(self.deploy_message)]
 
         self.deploy_is_error = False
         self.deploy_message = f"Contract '{self.contract_name}' deployed successfully."
+        self._log_success("deploy", self.deploy_message)
         self.selected_contract = self.contract_name
         self.load_selected_contract = self.contract_name
         self.kwargs_input = DEFAULT_KWARGS_INPUT
@@ -556,6 +717,8 @@ class PlaygroundState(rx.State):
             self.expert_message = "No environment key selected."
             return []
         current = self.environment_editor.get(key, "")
+        before_value = DEFAULT_ENVIRONMENT.get(key, "")
+        session_id = self._require_session()
         session_id = self._require_session()
         if not session_id:
             return []
@@ -564,17 +727,33 @@ class PlaygroundState(rx.State):
                 session_runtime.remove_environment_var(session_id, key)
                 message = f"Environment['{key}'] cleared."
                 toast = rx.toast.info(message)
+                after_value = DEFAULT_ENVIRONMENT.get(key, "")
             else:
                 session_runtime.set_environment_var(session_id, key, current)
                 message = f"Environment['{key}'] updated."
                 toast = rx.toast.success(message)
+                after_value = current
+        except ContractWorkerInvocationError as exc:
+            self.expert_is_error = True
+            self.expert_message = self._log_worker_failure(
+                "environment",
+                f"Failed to set environment['{key}']: ",
+                exc,
+            )
+            return [rx.toast.error(self.expert_message)]
         except Exception as exc:
             self.expert_is_error = True
-            self.expert_message = f"Failed to set environment['{key}']: {exc}"
+            self.expert_message = self._log_generic_failure(
+                "environment",
+                f"Failed to set environment['{key}']: ",
+                exc,
+            )
             return [rx.toast.error(self.expert_message)]
 
         self.expert_is_error = False
         self.expert_message = message
+        detail = f"{key}: {self._format_log_json(before_value)} -> {self._format_log_json(after_value)}"
+        self._log_success("environment", message, detail=detail)
         self._save_session()
         return [toast, type(self).refresh_environment]
 
@@ -586,10 +765,28 @@ class PlaygroundState(rx.State):
         session_id = self._require_session()
         if not session_id:
             return []
-        session_runtime.remove_environment_var(session_id, key)
+        before_value = self.environment_editor.get(key, DEFAULT_ENVIRONMENT.get(key, ""))
+        try:
+            session_runtime.remove_environment_var(session_id, key)
+        except ContractWorkerInvocationError as exc:
+            message = self._log_worker_failure(
+                "environment",
+                f"Failed to reset environment['{key}']: ",
+                exc,
+            )
+            return [rx.toast.error(message)]
+        except Exception as exc:
+            message = self._log_generic_failure(
+                "environment",
+                f"Failed to reset environment['{key}']: ",
+                exc,
+            )
+            return [rx.toast.error(message)]
         self.environment_editor[key] = DEFAULT_ENVIRONMENT.get(key, "")
         self.expert_is_error = False
         self.expert_message = f"Environment['{key}'] cleared."
+        detail = f"{key}: {self._format_log_json(before_value)} -> {self._format_log_json(self.environment_editor[key])}"
+        self._log_success("environment", self.expert_message, detail=detail)
         self._save_session()
         return [rx.toast.info(self.expert_message), type(self).refresh_environment]
 
@@ -599,12 +796,14 @@ class PlaygroundState(rx.State):
     def cancel_state_editing(self):
         self.state_is_editing = False
         self.state_editor = self.state_dump
+        self._state_edit_snapshot = ""
         return []
 
     def toggle_state_editor(self):
         if not self.state_is_editing:
             self.state_editor = self.state_dump
             self.state_is_editing = True
+            self._state_edit_snapshot = self.state_dump
             return []
 
         try:
@@ -617,12 +816,24 @@ class PlaygroundState(rx.State):
             return []
         try:
             session_runtime.apply_state_snapshot(session_id, data)
+        except ContractWorkerInvocationError as exc:
+            message = self._log_worker_failure("state_edit", "Failed to update state: ", exc)
+            return [rx.toast.error(message)]
         except Exception as exc:
-            return [rx.toast.error(f"Failed to update state: {exc}")]
+            message = self._log_generic_failure("state_edit", "Failed to update state: ", exc)
+            return [rx.toast.error(message)]
 
         self.state_is_editing = False
         self.refresh_state()
         self._save_session()
+        try:
+            before_data = json.loads(self._state_edit_snapshot or "{}")
+        except json.JSONDecodeError:
+            before_data = {}
+        diff_summary = self._summarize_state_diff(before_data, data)
+        self._state_edit_snapshot = ""
+        detail = f"Changes:\n{diff_summary}"
+        self._log_success("state_edit", "State updated from editor changes.", detail=detail)
         return [rx.toast.success("State updated.")]
 
     def lint_contract(self):
@@ -695,13 +906,47 @@ class PlaygroundState(rx.State):
         session_id = self._require_session()
         if not session_id:
             return []
+        context = {
+            "Contract": self.selected_contract or "-",
+            "Function": self.function_name or "-",
+            "Kwargs": self._format_log_json(kwargs),
+        }
+        detail_lines = [
+            f"Contract: {context['Contract']}",
+            f"Function: {context['Function']}",
+            f"Kwargs: {context['Kwargs']}",
+        ]
+        detail_text = "\n".join(detail_lines)
         try:
             call_result = session_runtime.call(session_id, self.selected_contract, self.function_name, kwargs)
+        except ContractWorkerInvocationError as exc:
+            message = self._log_worker_failure(
+                "execute",
+                "Execution failed: ",
+                exc,
+                extra_lines={"Call": detail_text},
+            )
+            self.run_result = message
+            return [rx.toast.error(self.run_result)]
         except Exception as exc:
-            self.run_result = f"Execution failed: {exc}"
+            message = self._log_generic_failure(
+                "execute",
+                "Execution failed: ",
+                exc,
+                detail_text,
+            )
+            self.run_result = message
             return [rx.toast.error(self.run_result)]
 
         self.run_result = call_result.as_string()
+        detail = self.run_result if self.run_result else ""
+        result_preview = self._format_log_json(call_result.result)
+        detail_payload = "\n".join([detail_text, f"Result: {result_preview}"])
+        self._log_success(
+            "execute",
+            f"Executed {self.selected_contract}.{self.function_name}",
+            detail=detail_payload if detail_payload else detail,
+        )
         return [
             rx.toast.success("Execution succeeded."),
             type(self).refresh_state,

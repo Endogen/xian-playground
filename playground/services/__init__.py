@@ -1,20 +1,7 @@
-from .contracting import (
-    ContractDetails,
-    ContractExportInfo,
-    ContractingService,
-    DEFAULT_ENVIRONMENT,
-    DEFAULT_SIGNER,
-    ENVIRONMENT_FIELDS,
-    FunctionParameter,
-)
-from .linting import lint_contract
-from .runtime import (
-    SESSION_COOKIE_MAX_AGE,
-    SESSION_COOKIE_NAME,
-    SessionRuntimeManager,
-    session_runtime,
-)
-from .sessions import SessionMetadata, SessionRepository, SessionNotFoundError
+from __future__ import annotations
+
+from importlib import import_module
+from typing import Any
 
 __all__ = [
     "ContractingService",
@@ -33,3 +20,37 @@ __all__ = [
     "SessionMetadata",
     "SessionNotFoundError",
 ]
+
+_EXPORT_MAP = {
+    "contracting": {
+        "ContractingService",
+        "ENVIRONMENT_FIELDS",
+        "DEFAULT_SIGNER",
+        "DEFAULT_ENVIRONMENT",
+        "ContractDetails",
+        "ContractExportInfo",
+        "FunctionParameter",
+    },
+    "linting": {"lint_contract"},
+    "runtime": {
+        "SessionRuntimeManager",
+        "session_runtime",
+        "SESSION_COOKIE_NAME",
+        "SESSION_COOKIE_MAX_AGE",
+    },
+    "sessions": {
+        "SessionRepository",
+        "SessionMetadata",
+        "SessionNotFoundError",
+    },
+}
+
+
+def __getattr__(name: str) -> Any:
+    for module_name, symbols in _EXPORT_MAP.items():
+        if name in symbols:
+            module = import_module(f".{module_name}", __name__)
+            value = getattr(module, name)
+            globals()[name] = value
+            return value
+    raise AttributeError(name)

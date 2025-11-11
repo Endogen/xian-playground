@@ -45,6 +45,7 @@ def _env_int(name: str, default: int) -> int:
 DEFAULT_MAX_IDLE_SECONDS = _env_float("PLAYGROUND_SESSION_MAX_IDLE_SECONDS", 900.0)
 DEFAULT_REAPER_INTERVAL_SECONDS = _env_float("PLAYGROUND_SESSION_REAPER_INTERVAL", 30.0)
 DEFAULT_MAX_RESIDENT_WORKERS = _env_int("PLAYGROUND_SESSION_MAX_WORKERS", 16)
+DEFAULT_WORKER_DRAIN_TIMEOUT = _env_float("PLAYGROUND_SESSION_WORKER_STOP_TIMEOUT", 5.0)
 
 WorkerFactory = Callable[[Path], ContractingWorker]
 
@@ -128,6 +129,7 @@ class SessionRuntimeManager:
         )
         self._reaper_stop = threading.Event()
         self._reaper_thread: threading.Thread | None = None
+        self._worker_stop_timeout = DEFAULT_WORKER_DRAIN_TIMEOUT
         if self._max_idle_seconds > 0 and self._reaper_interval > 0:
             self._start_reaper()
 
@@ -360,17 +362,26 @@ class SessionRuntimeManager:
         worker = self._worker_factory(storage_home=storage_home)
         worker.start()
         entry = SessionServiceEntry(worker=worker, proxy=None, last_used=time.time())
-        proxy = SessionServiceProxy(
-            worker,
-            before_invoke=entry.begin_invocation,
-            after_invoke=entry.end_invocation,
-        )
+        try:
+            proxy = SessionServiceProxy(
+                worker,
+                before_invoke=entry.begin_invocation,
+                after_invoke=entry.end_invocation,
+            )
+            proxy.hydrate_environment(metadata.environment)
+        except Exception:
+            try:
+                worker.stop()
+            except Exception:
+                logger.exception("Failed to stop worker after hydration error.")
+            raise
         entry.proxy = proxy
-        proxy.hydrate_environment(metadata.environment)
         return entry
 
     def _stop_entry(self, entry: SessionServiceEntry) -> None:
-        entry.wait_for_idle()
+        idle = entry.wait_for_idle(timeout=self._worker_stop_timeout)
+        if not idle:
+            logger.warning("Timed out waiting for session worker to become idle; forcing stop.")
         try:
             entry.worker.stop()
         except Exception:  # noqa: BLE001

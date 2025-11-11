@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import threading
 import time
 import uuid
@@ -11,7 +12,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterator
+from typing import Any, Dict, Iterator, List
 
 from .contracting import DEFAULT_ENVIRONMENT
 from ..defaults import DEFAULT_CONTRACT, DEFAULT_CONTRACT_NAME, DEFAULT_KWARGS_INPUT
@@ -218,6 +219,43 @@ class SessionRepository:
         with self._session_lock(metadata.session_id):
             tmp_path.write_text(json.dumps(payload, indent=2, sort_keys=True))
             tmp_path.replace(path)
+
+    def list_sessions(self) -> List[str]:
+        return [
+            item.name
+            for item in self._root.iterdir()
+            if item.is_dir()
+            if (item / SESSION_FILE_NAME).exists()
+        ]
+
+    def delete_session(self, session_id: str) -> None:
+        normalized = self._normalize_session_id(session_id)
+        if normalized is None:
+            return
+        path = self._session_dir(normalized)
+        with self._locks_lock:
+            self._locks.pop(normalized, None)
+        if path.exists():
+            try:
+                shutil.rmtree(path, ignore_errors=True)
+            except OSError:
+                pass
+
+    def expired_sessions(self, ttl_seconds: float) -> List[str]:
+        if ttl_seconds <= 0:
+            return []
+        now = datetime.now(tz=timezone.utc)
+        expired: List[str] = []
+        for session_id in self.list_sessions():
+            try:
+                metadata = self.load_metadata(session_id)
+            except SessionNotFoundError:
+                continue
+            updated_at = datetime.fromisoformat(metadata.updated_at)
+            age = (now - updated_at).total_seconds()
+            if age >= ttl_seconds:
+                expired.append(session_id)
+        return expired
 
     @contextmanager
     def _session_lock(self, session_id: str) -> Iterator[threading.RLock]:

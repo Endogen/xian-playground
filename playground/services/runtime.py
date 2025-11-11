@@ -46,6 +46,7 @@ DEFAULT_MAX_IDLE_SECONDS = _env_float("PLAYGROUND_SESSION_MAX_IDLE_SECONDS", 900
 DEFAULT_REAPER_INTERVAL_SECONDS = _env_float("PLAYGROUND_SESSION_REAPER_INTERVAL", 30.0)
 DEFAULT_MAX_RESIDENT_WORKERS = _env_int("PLAYGROUND_SESSION_MAX_WORKERS", 16)
 DEFAULT_WORKER_DRAIN_TIMEOUT = _env_float("PLAYGROUND_SESSION_WORKER_STOP_TIMEOUT", 5.0)
+DEFAULT_SESSION_TTL_SECONDS = _env_float("PLAYGROUND_SESSION_TTL_SECONDS", 7 * 24 * 60 * 60.0)
 
 WorkerFactory = Callable[[Path], ContractingWorker]
 
@@ -130,6 +131,7 @@ class SessionRuntimeManager:
         self._reaper_stop = threading.Event()
         self._reaper_thread: threading.Thread | None = None
         self._worker_stop_timeout = DEFAULT_WORKER_DRAIN_TIMEOUT
+        self._session_ttl_seconds = max(0.0, DEFAULT_SESSION_TTL_SECONDS)
         if self._max_idle_seconds > 0 and self._reaper_interval > 0:
             self._start_reaper()
 
@@ -277,6 +279,7 @@ class SessionRuntimeManager:
         while not self._reaper_stop.wait(self._reaper_interval):
             try:
                 self._reap_idle_workers()
+                self._reap_expired_sessions()
             except Exception:  # noqa: BLE001
                 logger.exception("Failed to reap idle session workers.")
 
@@ -386,6 +389,18 @@ class SessionRuntimeManager:
             entry.worker.stop()
         except Exception:  # noqa: BLE001
             logger.exception("Failed to stop contracting worker cleanly.")
+
+    def _reap_expired_sessions(self) -> None:
+        ttl = self._session_ttl_seconds
+        if ttl <= 0:
+            return
+        expired = self._repository.expired_sessions(ttl)
+        for session_id in expired:
+            try:
+                self.close_session(session_id)
+                self._repository.delete_session(session_id)
+            except Exception:  # noqa: BLE001
+                logger.exception("Failed to reap expired session %s", session_id)
 
 
 session_runtime = SessionRuntimeManager()

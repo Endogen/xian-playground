@@ -717,6 +717,8 @@ class PlaygroundState(rx.State):
             self.expert_message = "No environment key selected."
             return []
         current = self.environment_editor.get(key, "")
+        before_value = DEFAULT_ENVIRONMENT.get(key, "")
+        session_id = self._require_session()
         session_id = self._require_session()
         if not session_id:
             return []
@@ -725,10 +727,12 @@ class PlaygroundState(rx.State):
                 session_runtime.remove_environment_var(session_id, key)
                 message = f"Environment['{key}'] cleared."
                 toast = rx.toast.info(message)
+                after_value = DEFAULT_ENVIRONMENT.get(key, "")
             else:
                 session_runtime.set_environment_var(session_id, key, current)
                 message = f"Environment['{key}'] updated."
                 toast = rx.toast.success(message)
+                after_value = current
         except ContractWorkerInvocationError as exc:
             self.expert_is_error = True
             self.expert_message = self._log_worker_failure(
@@ -748,7 +752,8 @@ class PlaygroundState(rx.State):
 
         self.expert_is_error = False
         self.expert_message = message
-        self._log_success("environment", message)
+        detail = f"{key}: {self._format_log_json(before_value)} -> {self._format_log_json(after_value)}"
+        self._log_success("environment", message, detail=detail)
         self._save_session()
         return [toast, type(self).refresh_environment]
 
@@ -760,6 +765,7 @@ class PlaygroundState(rx.State):
         session_id = self._require_session()
         if not session_id:
             return []
+        before_value = self.environment_editor.get(key, DEFAULT_ENVIRONMENT.get(key, ""))
         try:
             session_runtime.remove_environment_var(session_id, key)
         except ContractWorkerInvocationError as exc:
@@ -779,7 +785,8 @@ class PlaygroundState(rx.State):
         self.environment_editor[key] = DEFAULT_ENVIRONMENT.get(key, "")
         self.expert_is_error = False
         self.expert_message = f"Environment['{key}'] cleared."
-        self._log_success("environment", self.expert_message)
+        detail = f"{key}: {self._format_log_json(before_value)} -> {self._format_log_json(self.environment_editor[key])}"
+        self._log_success("environment", self.expert_message, detail=detail)
         self._save_session()
         return [rx.toast.info(self.expert_message), type(self).refresh_environment]
 

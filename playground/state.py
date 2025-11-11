@@ -104,6 +104,7 @@ class PlaygroundState(rx.State):
     state_dump: str = "{}"
     _saved_code_snapshot: str = DEFAULT_CONTRACT
     log_entries: List[Dict[str, str]] = []
+    _state_edit_snapshot: str = ""
     activity_log_view_key: str = "activity-log"
 
     def on_load(self):
@@ -183,7 +184,13 @@ class PlaygroundState(rx.State):
         seed = f"{self.session_id or 'log'}-{time.time():.6f}"
         self.activity_log_view_key = seed
 
-    def _log_event(self, level: str, action: str, message: str, detail: str = "") -> None:
+    def _log_event(
+        self,
+        level: str,
+        action: str,
+        message: str,
+        detail: str = "",
+    ) -> None:
         normalized_level = (level or "").lower() or "info"
         detail = (detail or "").strip()
         if len(detail) > 4000:
@@ -197,9 +204,9 @@ class PlaygroundState(rx.State):
             "detail": detail,
             "color": LOG_LEVEL_COLORS.get(normalized_level, LOG_LEVEL_COLORS["info"]),
         }
-        entries = self.log_entries + [entry]
+        entries = [entry] + self.log_entries
         if len(entries) > ACTIVITY_LOG_MAX_ENTRIES:
-            entries = entries[-ACTIVITY_LOG_MAX_ENTRIES:]
+            entries = entries[:ACTIVITY_LOG_MAX_ENTRIES]
         self.log_entries = entries
 
     def _log_success(self, action: str, message: str, detail: str = "") -> None:
@@ -210,17 +217,59 @@ class PlaygroundState(rx.State):
         action: str,
         prefix: str,
         exc: ContractWorkerInvocationError,
+        extra_lines: Dict[str, str] | None = None,
     ) -> str:
         core = exc.remote_message or exc.remote_type
         message = f"{prefix}{core}"
         detail = f"{exc.remote_type}: {exc.remote_message}".strip()
+        if extra_lines:
+            suffix = "\n".join(f"{key}: {value}" for key, value in extra_lines.items())
+            detail = f"{detail}\n{suffix}"
         self._log_event("error", action, message, detail)
         return message
 
-    def _log_generic_failure(self, action: str, prefix: str, exc: Exception) -> str:
+    def _log_generic_failure(
+        self,
+        action: str,
+        prefix: str,
+        exc: Exception,
+        detail_suffix: str | None = None,
+    ) -> str:
         message = f"{prefix}{exc}"
-        self._log_event("error", action, message)
+        detail = detail_suffix or ""
+        self._log_event("error", action, message, detail)
         return message
+
+    def _format_log_json(self, data: object, *, limit: int = 160) -> str:
+        try:
+            text = json.dumps(data, sort_keys=True)
+        except Exception:
+            text = str(data)
+        text = text.strip()
+        if len(text) > limit:
+            text = text[:limit] + "…"
+        return text
+
+    def _summarize_state_diff(
+        self,
+        before: Dict[str, object] | None,
+        after: Dict[str, object] | None,
+        limit: int = 5,
+    ) -> str:
+        before = before or {}
+        after = after or {}
+        changes: list[str] = []
+        changed_keys = [key for key in sorted(set(before) | set(after)) if before.get(key) != after.get(key)]
+        total = len(changed_keys)
+        for key in changed_keys[:limit]:
+            before_display = self._format_log_json(before.get(key))
+            after_display = self._format_log_json(after.get(key))
+            changes.append(f"{key}: {before_display} -> {after_display}")
+        if total > limit:
+            changes.append(f"... and {total - limit} more change(s)")
+        if not changes:
+            changes.append("State updated without detectable key changes.")
+        return "\n".join(changes)
 
     def clear_logs(self):
         self.log_entries = []
@@ -740,12 +789,14 @@ class PlaygroundState(rx.State):
     def cancel_state_editing(self):
         self.state_is_editing = False
         self.state_editor = self.state_dump
+        self._state_edit_snapshot = ""
         return []
 
     def toggle_state_editor(self):
         if not self.state_is_editing:
             self.state_editor = self.state_dump
             self.state_is_editing = True
+            self._state_edit_snapshot = self.state_dump
             return []
 
         try:
@@ -768,7 +819,14 @@ class PlaygroundState(rx.State):
         self.state_is_editing = False
         self.refresh_state()
         self._save_session()
-        self._log_success("state_edit", "State updated from editor changes.")
+        try:
+            before_data = json.loads(self._state_edit_snapshot or "{}")
+        except json.JSONDecodeError:
+            before_data = {}
+        diff_summary = self._summarize_state_diff(before_data, data)
+        self._state_edit_snapshot = ""
+        detail = f"Changes:\n{diff_summary}"
+        self._log_success("state_edit", "State updated from editor changes.", detail=detail)
         return [rx.toast.success("State updated.")]
 
     def lint_contract(self):
@@ -841,23 +899,46 @@ class PlaygroundState(rx.State):
         session_id = self._require_session()
         if not session_id:
             return []
+        context = {
+            "Contract": self.selected_contract or "-",
+            "Function": self.function_name or "-",
+            "Kwargs": self._format_log_json(kwargs),
+        }
+        detail_lines = [
+            f"Contract: {context['Contract']}",
+            f"Function: {context['Function']}",
+            f"Kwargs: {context['Kwargs']}",
+        ]
+        detail_text = "\n".join(detail_lines)
         try:
             call_result = session_runtime.call(session_id, self.selected_contract, self.function_name, kwargs)
         except ContractWorkerInvocationError as exc:
-            message = self._log_worker_failure("execute", "Execution failed: ", exc)
+            message = self._log_worker_failure(
+                "execute",
+                "Execution failed: ",
+                exc,
+                extra_lines={"Call": detail_text},
+            )
             self.run_result = message
             return [rx.toast.error(self.run_result)]
         except Exception as exc:
-            message = self._log_generic_failure("execute", "Execution failed: ", exc)
+            message = self._log_generic_failure(
+                "execute",
+                "Execution failed: ",
+                exc,
+                detail_text,
+            )
             self.run_result = message
             return [rx.toast.error(self.run_result)]
 
         self.run_result = call_result.as_string()
         detail = self.run_result if self.run_result else ""
+        result_preview = self._format_log_json(call_result.result)
+        detail_payload = "\n".join([detail_text, f"Result: {result_preview}"])
         self._log_success(
             "execute",
             f"Executed {self.selected_contract}.{self.function_name}",
-            detail=detail,
+            detail=detail_payload if detail_payload else detail,
         )
         return [
             rx.toast.success("Execution succeeded."),

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import atexit
 import multiprocessing as mp
+import os
 import threading
 import traceback
 from dataclasses import dataclass
@@ -9,11 +10,12 @@ from multiprocessing.connection import Connection
 from pathlib import Path
 from typing import Any, Callable
 
+DEFAULT_RPC_TIMEOUT = float(os.getenv("PLAYGROUND_WORKER_RPC_TIMEOUT", "30.0"))
 
 class ContractingWorker(mp.Process):
     """Run a ContractingService inside an isolated process."""
 
-    def __init__(self, storage_home: Path):
+    def __init__(self, storage_home: Path, rpc_timeout: float | None = None):
         super().__init__(daemon=True)
         self._storage_home = str(storage_home)
         self._parent_conn: Connection | None = None
@@ -21,6 +23,7 @@ class ContractingWorker(mp.Process):
         self._lock = None
         self._stopped = False
         self._dead = False
+        self._rpc_timeout = DEFAULT_RPC_TIMEOUT if rpc_timeout is None else rpc_timeout
 
     def run(self) -> None:
         from .contracting import ContractingService  # Local import for spawn safety
@@ -73,6 +76,11 @@ class ContractingWorker(mp.Process):
                 raise RuntimeError("Worker connection not initialized.")
             try:
                 conn.send((command, args, kwargs))
+                timeout = self._rpc_timeout
+                if timeout is not None and timeout > 0:
+                    if not conn.poll(timeout):
+                        self._handle_timeout()
+                        raise ContractWorkerTimeoutError(command=command, timeout=timeout)
                 status, payload = conn.recv()
             except (EOFError, BrokenPipeError):
                 self._dead = True
@@ -149,6 +157,20 @@ class SessionServiceProxy:
     def stop(self) -> None:
         self._worker.stop()
 
+    def _handle_timeout(self) -> None:
+        self._dead = True
+        try:
+            if self._parent_conn is not None:
+                self._parent_conn.close()
+                self._parent_conn = None
+            if self._child_conn is not None:
+                self._child_conn.close()
+                self._child_conn = None
+            if self.is_alive():
+                self.terminate()
+        finally:
+            self._stopped = True
+
 
 @dataclass(slots=True)
 class RemoteExceptionPayload:
@@ -209,3 +231,12 @@ class ContractWorkerInvocationError(RuntimeError):
     def pretty_remote_traceback(self) -> str:
         """Return the remote traceback or a synthesized message."""
         return self.remote_traceback or f"{self.remote_type}: {self.remote_message}"
+
+
+class ContractWorkerTimeoutError(RuntimeError):
+    """Raised when the contracting worker fails to respond within the timeout."""
+
+    def __init__(self, *, command: str, timeout: float):
+        self.command = command
+        self.timeout = timeout
+        super().__init__(f"{command} timed out after {timeout} seconds.")

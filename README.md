@@ -36,6 +36,10 @@ On the production server we override ports and other flags via CLI arguments (se
   Defaults to 10 MB. Lower this if you want to guard a shared deployment against large uploads.
 - `PLAYGROUND_ACTIVITY_LOG_MAX_ENTRIES` – Number of activity log entries to retain in memory/client
   state. Defaults to 50. Increase for debugging-heavy sessions; lower to minimize persisted state.
+- `PLAYGROUND_SESSION_LOCK_IDLE_SECONDS` – How long (seconds) an unused session metadata lock stays cached
+  before being dropped. Defaults to 600 s; lower it if you expect many short-lived sessions.
+- `PLAYGROUND_SESSION_LOCK_CACHE` – Maximum number of session metadata locks held in memory at once (default 2048).
+  Excess idle locks are evicted LRU-style.
 
 ## Installation
 

@@ -893,49 +893,52 @@ def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component
 
 def log_section() -> rx.Component:
     body_height = "360px"
-    clear_button = rx.cond(
+
+    clear_button_row = rx.cond(
         PlaygroundState.log_entries == [],
         rx.fragment(),
-        styled_button(
-            "Clear Log",
-            color_scheme="warning",
-            on_click=PlaygroundState.clear_logs,
+        rx.hstack(
+            rx.spacer(),
+            styled_button(
+                "Clear Log",
+                color_scheme="warning",
+                on_click=PlaygroundState.clear_logs,
+            ),
+            width="100%",
+            align_items="center",
+        ),
+    )
+
+    log_entries_content = rx.cond(
+        PlaygroundState.log_entries == [],
+        rx.text(
+            "Actions you run will appear here with the latest at the bottom.",
+            color=COLORS["text_secondary"],
+            size="2",
+        ),
+        rx.box(
+            rx.vstack(
+                rx.foreach(
+                    PlaygroundState.log_entries,
+                    lambda entry, idx: log_entry_item(entry),
+                ),
+                gap="12px",
+                width="100%",
+            ),
+            max_height=body_height,
+            overflow="auto",
+            width="100%",
+            background=COLORS["bg_tertiary"],
+            border=f"1px solid {COLORS['border']}",
+            border_radius="12px",
+            padding="12px",
         ),
     )
 
     log_body = rx.box(
         rx.vstack(
-            rx.hstack(
-                rx.spacer(),
-                clear_button,
-                width="100%",
-                align_items="center",
-            ),
-            rx.cond(
-                PlaygroundState.log_entries == [],
-                rx.text(
-                    "Actions you run will appear here with the latest at the bottom.",
-                    color=COLORS["text_secondary"],
-                    size="2",
-                ),
-                rx.box(
-                    rx.vstack(
-                        rx.foreach(
-                            PlaygroundState.log_entries,
-                            lambda entry, idx: log_entry_item(entry),
-                        ),
-                        gap="12px",
-                        width="100%",
-                    ),
-                    max_height=body_height,
-                    overflow="auto",
-                    width="100%",
-                    background=COLORS["bg_tertiary"],
-                    border=f"1px solid {COLORS['border']}",
-                    border_radius="12px",
-                    padding="12px",
-                ),
-            ),
+            log_entries_content,
+            clear_button_row,
             spacing="3",
             width="100%",
         ),

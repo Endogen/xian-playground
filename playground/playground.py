@@ -480,9 +480,9 @@ def environment_field_row(info: dict) -> rx.Component:
     )
 
 
-EDITOR_HEIGHT = "320px"
-STATE_HEIGHT = "360px"
 LOAD_VIEW_HEIGHT = "378px"
+EDITOR_HEIGHT = "320px"
+STATE_HEIGHT = LOAD_VIEW_HEIGHT
 
 
 def expert_section() -> rx.Component:
@@ -565,17 +565,30 @@ def expert_section() -> rx.Component:
 def editor_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
     card_kwargs = card_kwargs or {}
     is_fullscreen = card_kwargs.get("flex") is not None
-    editor_height = "100%" if is_fullscreen else EDITOR_HEIGHT
 
+    outer_panel_style: Dict[str, Any] = {
+        "width": "100%",
+        "display": "flex",
+        "flexDirection": "column",
+        "gap": "12px",
+        "flex": "1 1 auto",
+    }
+    editor_height = "100%" if is_fullscreen else EDITOR_HEIGHT
     editor_container_kwargs: Dict[str, Any] = {
         "width": "100%",
         "display": "flex",
-        "min_height": EDITOR_HEIGHT,
-        "max_height": EDITOR_HEIGHT,
-        "height": EDITOR_HEIGHT,
+        "min_height": editor_height,
+        "max_height": editor_height,
+        "height": editor_height,
         "overflow": "hidden",
     }
     if is_fullscreen:
+        outer_panel_style.update(
+            {
+                "height": "100%",
+                "minHeight": "0",
+            }
+        )
         editor_container_kwargs.update(
             {
                 "flex": "1 1 auto",
@@ -584,6 +597,96 @@ def editor_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
                 "height": "100%",
             }
         )
+    else:
+        outer_panel_style.update(
+            {
+                "height": LOAD_VIEW_HEIGHT,
+                "minHeight": LOAD_VIEW_HEIGHT,
+                "maxHeight": LOAD_VIEW_HEIGHT,
+            }
+        )
+
+    lint_box = rx.box(
+        rx.foreach(
+            PlaygroundState.lint_results,
+            lambda message: rx.text(
+                message,
+                color=COLORS["warning"],
+                size="2",
+            ),
+        ),
+        padding="12px",
+        border=f"1px solid {COLORS['border']}",
+        border_radius="8px",
+        background=COLORS["bg_tertiary"],
+        width="100%",
+        gap="8px",
+        display=rx.cond(
+            PlaygroundState.lint_results != [],
+            "flex",
+            "none",
+        ),
+        flex_direction="column",
+    )
+
+    panel_body = rx.box(
+        rx.vstack(
+            rx.box(
+                MonacoEditor.create(
+                    default_value=PlaygroundState.code_editor,
+                    language="python",
+                    theme="vs-dark",
+                    height=editor_height,
+                    options={
+                        "automaticLayout": True,
+                        "tabSize": 4,
+                        "insertSpaces": True,
+                        "scrollBeyondLastLine": False,
+                        "wordWrap": "on",
+                        "minimap": {"enabled": False},
+                        "lineNumbers": "on",
+                        "renderWhitespace": "selection",
+                        "padding": {"top": 12, "bottom": 12},
+                    },
+                    on_change=PlaygroundState.update_code,
+                    key=PlaygroundState.code_editor_revision,
+                    class_name="playground-monaco",
+                ),
+                **editor_container_kwargs,
+            ),
+            rx.hstack(
+                styled_button(
+                    "Save Draft",
+                    on_click=PlaygroundState.save_code_draft,
+                    color_scheme="blue",
+                ),
+                rx.spacer(),
+                styled_button(
+                    "Deploy Contract",
+                    on_click=PlaygroundState.deploy_contract,
+                    color_scheme="purple",
+                ),
+                styled_button(
+                    rx.cond(
+                        PlaygroundState.linting,
+                        "Linting...",
+                        "Run Linter",
+                    ),
+                    on_click=PlaygroundState.lint_contract,
+                    color_scheme="cyan",
+                    disabled=PlaygroundState.linting,
+                ),
+                width="100%",
+                spacing="3",
+            ),
+            lint_box,
+            spacing="3",
+            width="100%",
+            flex="1 1 auto",
+            min_height="0",
+        ),
+        style=outer_panel_style,
+    )
 
     return card(
         section_header(
@@ -597,74 +700,7 @@ def editor_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
             value=PlaygroundState.contract_name,
             on_change=PlaygroundState.update_contract_name,
         ),
-        rx.box(
-            MonacoEditor.create(
-                default_value=PlaygroundState.code_editor,
-                language="python",
-                theme="vs-dark",
-                height=editor_height,
-                options={
-                    "automaticLayout": True,
-                    "tabSize": 4,
-                    "insertSpaces": True,
-                    "scrollBeyondLastLine": False,
-                    "wordWrap": "on",
-                    "minimap": {"enabled": False},
-                    "lineNumbers": "on",
-                    "renderWhitespace": "selection",
-                    "padding": {"top": 12, "bottom": 12},
-                },
-                on_change=PlaygroundState.update_code,
-                key=PlaygroundState.code_editor_revision,
-                class_name="playground-monaco",
-            ),
-            **editor_container_kwargs,
-        ),
-        rx.hstack(
-            styled_button(
-                "Save Draft",
-                on_click=PlaygroundState.save_code_draft,
-                color_scheme="blue",
-            ),
-            rx.spacer(),
-            styled_button(
-                "Deploy Contract",
-                on_click=PlaygroundState.deploy_contract,
-                color_scheme="purple",
-            ),
-            styled_button(
-                rx.cond(
-                    PlaygroundState.linting,
-                    "Linting...",
-                    "Run Linter",
-                ),
-                on_click=PlaygroundState.lint_contract,
-                color_scheme="cyan",
-                disabled=PlaygroundState.linting,
-            ),
-            width="100%",
-            spacing="3",
-        ),
-        rx.cond(
-            PlaygroundState.lint_results != [],
-            rx.box(
-                rx.foreach(
-                    PlaygroundState.lint_results,
-                    lambda message: rx.text(
-                        message,
-                        color=COLORS["warning"],
-                        size="2",
-                    ),
-                ),
-                padding="12px",
-                border=f"1px solid {COLORS['border']}",
-                border_radius="8px",
-                background=COLORS["bg_tertiary"],
-                width="100%",
-                gap="8px",
-            ),
-            rx.fragment(),
-        ),
+        panel_body,
         **card_kwargs,
     )
 
@@ -673,16 +709,36 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
     card_kwargs = card_kwargs or {}
     is_fullscreen = card_kwargs.get("flex") is not None
     panel_height = "100%" if is_fullscreen else LOAD_VIEW_HEIGHT
-    viewer_props: Dict[str, Any] = {
-        "display": "flex",
-        "flex_direction": "column",
-        "gap": "12px",
+    outer_panel_style: Dict[str, Any] = {
         "width": "100%",
+        "display": "flex",
+        "flexDirection": "column",
+        "gap": "12px",
         "flex": "1 1 auto",
-        "min_height": "0",
     }
-    if not is_fullscreen:
-        viewer_props["min_height"] = panel_height
+    if is_fullscreen:
+        outer_panel_style.update(
+            {
+                "height": "100%",
+                "minHeight": "0",
+            }
+        )
+    else:
+        outer_panel_style.update(
+            {
+                "height": panel_height,
+                "minHeight": panel_height,
+                "maxHeight": panel_height,
+            }
+        )
+
+    viewer_stack_style: Dict[str, Any] = {
+        "display": "flex",
+        "flexDirection": "column",
+        "gap": "12px",
+        "flex": "1 1 auto",
+        "minHeight": "0",
+    }
 
     def _code_viewer_style(is_full: bool, max_height: str) -> Dict[str, Any]:
         style: Dict[str, Any] = {
@@ -707,6 +763,7 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
                     "flex": "1 1 auto",
                     "height": "100%",
                     "minHeight": "0",
+                    "maxHeight": max_height,
                 }
             )
         return style
@@ -729,21 +786,20 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
             ),
             width="100%",
         ),
-        rx.cond(
-            PlaygroundState.load_selected_contract == "",
-            rx.box(
-                rx.text(
-                    "Select a deployed contract to review its source and exports.",
-                    color=COLORS["text_muted"],
-                    size="2",
+        rx.box(
+            rx.cond(
+                PlaygroundState.load_selected_contract == "",
+                rx.box(
+                    rx.text(
+                        "Select a deployed contract to review its source and exports.",
+                        color=COLORS["text_muted"],
+                        size="2",
+                    ),
+                    padding="12px",
+                    border=f"1px dashed {COLORS['border']}",
+                    border_radius="8px",
                 ),
-                padding="12px",
-                border=f"1px dashed {COLORS['border']}",
-                border_radius="8px",
-                **viewer_props,
-            ),
-            rx.box(
-                rx.vstack(
+                rx.box(
                     rx.hstack(
                         rx.text(
                             rx.cond(
@@ -796,15 +852,12 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
                         color_scheme="error",
                         disabled=PlaygroundState.load_selected_contract == "",
                         width="100%",
+                        margin_top="auto",
                     ),
-                    spacing="3",
-                    width="100%",
-                    flex="1 1 auto",
-                    min_height="0",
-                    height="100%",
+                    **viewer_stack_style,
                 ),
-                **viewer_props,
             ),
+            style=outer_panel_style,
         ),
         **card_kwargs,
     )
@@ -814,6 +867,36 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
 def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
     card_kwargs = card_kwargs or {}
     is_fullscreen = card_kwargs.get("flex") is not None
+
+    outer_panel_style: Dict[str, Any] = {
+        "width": "100%",
+        "display": "flex",
+        "flexDirection": "column",
+        "gap": "12px",
+        "flex": "1 1 auto",
+    }
+    inner_stack_style: Dict[str, Any] = {
+        "display": "flex",
+        "flexDirection": "column",
+        "gap": "12px",
+        "flex": "1 1 auto",
+        "minHeight": "0",
+    }
+    if is_fullscreen:
+        outer_panel_style.update(
+            {
+                "height": "100%",
+                "minHeight": "0",
+            }
+        )
+    else:
+        outer_panel_style.update(
+            {
+                "height": LOAD_VIEW_HEIGHT,
+                "minHeight": LOAD_VIEW_HEIGHT,
+                "maxHeight": LOAD_VIEW_HEIGHT,
+            }
+        )
 
     textarea_kwargs: Dict[str, Any] = {
         "placeholder": 'Kwargs as JSON, e.g. {"to": "alice", "amount": 25}',
@@ -833,37 +916,10 @@ def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component
         "flex_direction": "column",
     }
 
-    return card(
-        section_header(
-            "Execute Contract",
-            "Pick a deployed contract and exported function to run.",
-            panel_id="execute",
-            icon="play",
-        ),
-        styled_select(
-            items=PlaygroundState.deployed_contracts,
-            value=PlaygroundState.selected_contract,
-            placeholder="Select a contract",
-            on_change=PlaygroundState.change_selected_contract,
-        ),
-        styled_select(
-            items=PlaygroundState.available_functions,
-            value=PlaygroundState.function_name,
-            placeholder="Select a function",
-            on_change=PlaygroundState.change_selected_function,
-        ),
+    result_view = rx.cond(
+        PlaygroundState.run_result == "",
+        rx.fragment(),
         rx.box(
-            styled_text_area(**textarea_kwargs),
-            **textarea_container_props,
-        ),
-        styled_button(
-            "Run Function",
-            on_click=PlaygroundState.run_contract,
-            color_scheme="success",
-        ),
-        rx.cond(
-            PlaygroundState.run_result == "",
-            rx.fragment(),
             rx.vstack(
                 rx.hstack(
                     rx.icon(tag="terminal", size=18, color=COLORS["accent_cyan"]),
@@ -886,18 +942,68 @@ def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component
                     style={
                         "width": "100%",
                         "fontSize": "12px",
-                        "maxHeight": "50vh" if is_fullscreen else "300px",
                         "overflow": "auto",
                         "border": f"1px solid {COLORS['border']}",
                         "borderRadius": "8px",
                         "padding": "12px",
                         "background": COLORS["bg_tertiary"],
+                        "flex": "1 1 auto",
+                        "minHeight": "0",
                     },
                 ),
                 spacing="3",
                 width="100%",
             ),
+            flex="1 1 auto",
+            min_height="0",
+            width="100%",
+            display="flex",
+            flex_direction="column",
         ),
+    )
+
+    panel_body = rx.box(
+        rx.vstack(
+            rx.box(
+                styled_text_area(**textarea_kwargs),
+                **textarea_container_props,
+            ),
+            rx.box(
+                styled_button(
+                    "Run Function",
+                    on_click=PlaygroundState.run_contract,
+                    color_scheme="success",
+                ),
+                width="100%",
+            ),
+            result_view,
+            spacing="3",
+            width="100%",
+            **inner_stack_style,
+        ),
+        style=outer_panel_style,
+    )
+
+    return card(
+        section_header(
+            "Execute Contract",
+            "Pick a deployed contract and exported function to run.",
+            panel_id="execute",
+            icon="play",
+        ),
+        styled_select(
+            items=PlaygroundState.deployed_contracts,
+            value=PlaygroundState.selected_contract,
+            placeholder="Select a contract",
+            on_change=PlaygroundState.change_selected_contract,
+        ),
+        styled_select(
+            items=PlaygroundState.available_functions,
+            value=PlaygroundState.function_name,
+            placeholder="Select a function",
+            on_change=PlaygroundState.change_selected_function,
+        ),
+        panel_body,
         **card_kwargs,
     )
 

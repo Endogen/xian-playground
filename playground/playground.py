@@ -678,22 +678,11 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
         "flex_direction": "column",
         "gap": "12px",
         "width": "100%",
+        "flex": "1 1 auto",
+        "min_height": "0",
     }
-    if is_fullscreen:
-        viewer_props.update(
-            {
-                "flex": "1 1 auto",
-                "min_height": "0",
-            }
-        )
-    else:
-        viewer_props.update(
-            {
-                "height": panel_height,
-                "min_height": panel_height,
-                "max_height": panel_height,
-            }
-        )
+    if not is_fullscreen:
+        viewer_props["min_height"] = panel_height
 
     def _code_viewer_style(is_full: bool, max_height: str) -> Dict[str, Any]:
         style: Dict[str, Any] = {
@@ -718,7 +707,6 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
                     "flex": "1 1 auto",
                     "height": "100%",
                     "minHeight": "0",
-                    "maxHeight": max_height,
                 }
             )
         return style
@@ -730,27 +718,16 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
             panel_id="load",
             icon="folder-open",
         ),
-        rx.hstack(
-            rx.box(
-                styled_select(
-                    items=PlaygroundState.deployed_contracts,
-                    value=PlaygroundState.load_selected_contract,
-                    placeholder="Select a contract",
-                    on_change=PlaygroundState.change_loaded_contract,
-                    disabled=PlaygroundState.deployed_contracts == [],
-                    width="100%",
-                ),
-                flex="1",
+        rx.box(
+            styled_select(
+                items=PlaygroundState.deployed_contracts,
+                value=PlaygroundState.load_selected_contract,
+                placeholder="Select a contract",
+                on_change=PlaygroundState.change_loaded_contract,
+                disabled=PlaygroundState.deployed_contracts == [],
+                width="100%",
             ),
-            styled_button(
-                "Remove Contract",
-                on_click=PlaygroundState.remove_selected_contract,
-                color_scheme="error",
-                disabled=PlaygroundState.load_selected_contract == "",
-            ),
-            spacing="3",
             width="100%",
-            align_items="center",
         ),
         rx.cond(
             PlaygroundState.load_selected_contract == "",
@@ -763,59 +740,75 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
                 padding="12px",
                 border=f"1px dashed {COLORS['border']}",
                 border_radius="8px",
+                **viewer_props,
             ),
             rx.box(
-                rx.hstack(
-                    rx.text(
+                rx.vstack(
+                    rx.hstack(
+                        rx.text(
+                            rx.cond(
+                                PlaygroundState.load_view_decompiled,
+                                "Decompiled",
+                                "Raw",
+                            ),
+                            color=COLORS["text_secondary"],
+                            size="2",
+                        ),
+                        rx.spacer(),
+                        rx.switch(
+                            checked=PlaygroundState.load_view_decompiled,
+                            on_change=lambda value: PlaygroundState.toggle_load_view(),
+                            color_scheme="cyan",
+                        ),
+                        spacing="3",
+                        align_items="center",
+                        width="100%",
+                    ),
+                    rx.box(
                         rx.cond(
                             PlaygroundState.load_view_decompiled,
-                            "Decompiled",
-                            "Raw",
+                            code_viewer(
+                                PlaygroundState.loaded_contract_decompiled,
+                                "python",
+                                "# Decompiled source unavailable.",
+                                font_size="12px",
+                                boxed=False,
+                                style=_code_viewer_style(is_fullscreen, panel_height),
+                            ),
+                            code_viewer(
+                                PlaygroundState.loaded_contract_code,
+                                "python",
+                                "# Source unavailable.",
+                                font_size="12px",
+                                boxed=False,
+                                style=_code_viewer_style(is_fullscreen, panel_height),
+                            ),
                         ),
-                        color=COLORS["text_secondary"],
-                        size="2",
+                        flex="1 1 auto",
+                        min_height="0",
+                        width="100%",
+                        display="flex",
+                        flex_direction="column",
                     ),
-                    rx.spacer(),
-                    rx.switch(
-                        checked=PlaygroundState.load_view_decompiled,
-                        on_change=lambda value: PlaygroundState.toggle_load_view(),
-                        color_scheme="cyan",
+                    styled_button(
+                        "Remove Contract",
+                        on_click=PlaygroundState.remove_selected_contract,
+                        color_scheme="error",
+                        disabled=PlaygroundState.load_selected_contract == "",
+                        width="100%",
                     ),
                     spacing="3",
-                    align_items="center",
                     width="100%",
-                ),
-                rx.box(
-                    rx.cond(
-                        PlaygroundState.load_view_decompiled,
-                        code_viewer(
-                            PlaygroundState.loaded_contract_decompiled,
-                            "python",
-                            "# Decompiled source unavailable.",
-                            font_size="12px",
-                            boxed=False,
-                            style=_code_viewer_style(is_fullscreen, panel_height),
-                        ),
-                        code_viewer(
-                            PlaygroundState.loaded_contract_code,
-                            "python",
-                            "# Source unavailable.",
-                            font_size="12px",
-                            boxed=False,
-                            style=_code_viewer_style(is_fullscreen, panel_height),
-                        ),
-                    ),
                     flex="1 1 auto",
                     min_height="0",
-                    width="100%",
-                    display="flex",
-                    flex_direction="column",
+                    height="100%",
                 ),
                 **viewer_props,
             ),
         ),
         **card_kwargs,
     )
+
 
 
 def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:

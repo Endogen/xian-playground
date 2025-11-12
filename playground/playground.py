@@ -509,6 +509,14 @@ def expert_section() -> rx.Component:
                             gap="8px",
                             width="100%",
                         ),
+                        rx.text(
+                            "Configure deterministic runtime context. Leave a field blank to fall back to live defaults.",
+                            color=COLORS["text_black"],
+                            size="2",
+                            line_height="1.6",
+                            width="100%",
+                            text_align="left",
+                        ),
                         display="flex",
                         flex_direction="column",
                         gap="8px",
@@ -520,14 +528,6 @@ def expert_section() -> rx.Component:
                 content=rx.accordion.content(
                     rx.box(
                         rx.vstack(
-                            rx.text(
-                                "Configure deterministic runtime context. Leave a field blank to fall back to live defaults.",
-                                color=COLORS["text_primary"],
-                                size="2",
-                                line_height="1.6",
-                                width="100%",
-                                text_align="left",
-                            ),
                             rx.text(
                                 "Note: ctx.caller is managed by the runtime during contract-to-contract calls and cannot be overridden here.",
                                 color=COLORS["text_secondary"],

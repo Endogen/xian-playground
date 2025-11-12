@@ -705,10 +705,22 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
             "overflow": "auto",
         }
         if is_full:
-            style["flex"] = "1 1 auto"
-            style["minHeight"] = "0"
+            style.update(
+                {
+                    "flex": "1 1 auto",
+                    "minHeight": "0",
+                    "height": "100%",
+                }
+            )
         else:
-            style["maxHeight"] = max_height
+            style.update(
+                {
+                    "flex": "1 1 auto",
+                    "height": "100%",
+                    "minHeight": "0",
+                    "maxHeight": max_height,
+                }
+            )
         return style
 
     return card(
@@ -773,24 +785,31 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
                     align_items="center",
                     width="100%",
                 ),
-                rx.cond(
-                    PlaygroundState.load_view_decompiled,
-                    code_viewer(
-                        PlaygroundState.loaded_contract_decompiled,
-                        "python",
-                        "# Decompiled source unavailable.",
-                        font_size="12px",
-                        boxed=False,
-                        style=_code_viewer_style(is_fullscreen, panel_height),
+                rx.box(
+                    rx.cond(
+                        PlaygroundState.load_view_decompiled,
+                        code_viewer(
+                            PlaygroundState.loaded_contract_decompiled,
+                            "python",
+                            "# Decompiled source unavailable.",
+                            font_size="12px",
+                            boxed=False,
+                            style=_code_viewer_style(is_fullscreen, panel_height),
+                        ),
+                        code_viewer(
+                            PlaygroundState.loaded_contract_code,
+                            "python",
+                            "# Source unavailable.",
+                            font_size="12px",
+                            boxed=False,
+                            style=_code_viewer_style(is_fullscreen, panel_height),
+                        ),
                     ),
-                    code_viewer(
-                        PlaygroundState.loaded_contract_code,
-                        "python",
-                        "# Source unavailable.",
-                        font_size="12px",
-                        boxed=False,
-                        style=_code_viewer_style(is_fullscreen, panel_height),
-                    ),
+                    flex="1 1 auto",
+                    min_height="0",
+                    width="100%",
+                    display="flex",
+                    flex_direction="column",
                 ),
                 **viewer_props,
             ),

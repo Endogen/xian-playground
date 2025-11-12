@@ -891,10 +891,8 @@ def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component
     )
 
 
-def log_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
-    card_kwargs = card_kwargs or {}
-    is_fullscreen = card_kwargs.get("flex") is not None
-    body_height = "100%" if is_fullscreen else "360px"
+def log_section() -> rx.Component:
+    body_height = "360px"
     clear_button = rx.cond(
         PlaygroundState.log_entries == [],
         rx.fragment(),
@@ -957,7 +955,6 @@ def log_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
             gap="8px",
         ),
         rx.spacer(),
-        panel_expand_icon("log"),
         align_items="center",
         width="100%",
     )
@@ -993,7 +990,6 @@ def log_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
             width="100%",
             key=PlaygroundState.activity_log_view_key,
         ),
-        **card_kwargs,
     )
 
 
@@ -1190,7 +1186,7 @@ def state_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
     )
 
 
-def expanded_panel_content() -> rx.Component:
+def fullscreen_overlay() -> rx.Component:
     fullscreen_card_props = {
         "height": "100%",
         "min_height": "0",
@@ -1200,34 +1196,13 @@ def expanded_panel_content() -> rx.Component:
         "class_name": "fullscreen-card",
     }
 
-    return rx.cond(
-        PlaygroundState.expanded_panel == "write",
-        editor_section(card_kwargs=fullscreen_card_props),
-        rx.cond(
-            PlaygroundState.expanded_panel == "load",
-            load_section(card_kwargs=fullscreen_card_props),
-            rx.cond(
-                PlaygroundState.expanded_panel == "execute",
-                execution_section(card_kwargs=fullscreen_card_props),
-                rx.cond(
-                    PlaygroundState.expanded_panel == "state",
-                    state_section(card_kwargs=fullscreen_card_props),
-                    log_section(card_kwargs=fullscreen_card_props),
-                ),
-            ),
-        ),
-    )
-
-
-def fullscreen_overlay() -> rx.Component:
-    return rx.cond(
-        PlaygroundState.expanded_panel != "",
-        rx.fragment(
+    def _render_overlay(content: rx.Component) -> rx.Component:
+        return rx.fragment(
             rx.window_event_listener(
                 on_key_down=PlaygroundState.handle_fullscreen_keydown
             ),
             rx.box(
-                expanded_panel_content(),
+                content,
                 position="fixed",
                 inset="0",
                 padding=["16px", "24px", "32px"],
@@ -1240,8 +1215,24 @@ def fullscreen_overlay() -> rx.Component:
                 overflow_y="auto",
                 z_index="1000",
             ),
+        )
+
+    return rx.cond(
+        PlaygroundState.expanded_panel == "write",
+        _render_overlay(editor_section(card_kwargs=fullscreen_card_props)),
+        rx.cond(
+            PlaygroundState.expanded_panel == "load",
+            _render_overlay(load_section(card_kwargs=fullscreen_card_props)),
+            rx.cond(
+                PlaygroundState.expanded_panel == "execute",
+                _render_overlay(execution_section(card_kwargs=fullscreen_card_props)),
+                rx.cond(
+                    PlaygroundState.expanded_panel == "state",
+                    _render_overlay(state_section(card_kwargs=fullscreen_card_props)),
+                    rx.fragment(),
+                ),
+            ),
         ),
-        rx.fragment(),
     )
 
 
@@ -1341,7 +1332,7 @@ def index() -> rx.Component:
                     ),
                     # Full width expert + log sections
                     expert_section(),
-                    _maybe_render_panel("log", log_section()),
+                    log_section(),
                     spacing="5",
                     width="100%",
                 ),

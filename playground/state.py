@@ -60,6 +60,7 @@ LOG_LEVEL_COLORS = {
     "warning": "#f59e0b",
 }
 ENVIRONMENT_FIELD_KEYS = [field["key"] for field in ENVIRONMENT_FIELDS]
+FULLSCREEN_PANELS = {"write", "load", "execute", "state"}
 
 
 class PlaygroundState(rx.State):
@@ -154,6 +155,8 @@ class PlaygroundState(rx.State):
             if field == "code_editor" or field not in snapshot:
                 continue
             setattr(self, field, snapshot[field])
+        if self.expanded_panel not in FULLSCREEN_PANELS:
+            self.expanded_panel = ""
 
         if pending_editor_value is not None:
             self._hydrate_code_editor(str(pending_editor_value))
@@ -450,6 +453,8 @@ class PlaygroundState(rx.State):
     def toggle_panel(self, panel_id: str):
         target = (panel_id or "").strip()
         if not target:
+            return
+        if target not in FULLSCREEN_PANELS:
             return
         self.expanded_panel = "" if self.expanded_panel == target else target
 

@@ -504,7 +504,6 @@ def expert_section() -> rx.Component:
                                 font_weight="600",
                             ),
                             rx.spacer(),
-                            rx.accordion.icon(color=COLORS["accent_cyan"]),
                             align_items="center",
                             gap="8px",
                             width="100%",
@@ -557,7 +556,7 @@ def expert_section() -> rx.Component:
             type="single",
             collapsible=True,
             width="100%",
-            default_value="expert",
+            default_value="",
             class_name="playground-env-accordion",
         ),
     )
@@ -959,6 +958,7 @@ def log_section() -> rx.Component:
         ),
         rx.spacer(),
         align_items="center",
+        gap="8px",
         width="100%",
     )
 
@@ -983,8 +983,10 @@ def log_section() -> rx.Component:
                         gap="8px",
                         width="100%",
                     ),
+                    padding_y="8px",
+                    padding_x="12px",
                 ),
-                content=rx.accordion.content(log_body),
+                content=rx.accordion.content(log_body, padding_top="12px"),
                 value="activity-log",
             ),
             type="single",

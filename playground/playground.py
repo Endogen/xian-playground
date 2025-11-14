@@ -353,6 +353,15 @@ def session_panel() -> rx.Component:
         width=input_width,
         flex="1 1 auto",
         min_width="0",
+        max_width=rx.breakpoints(initial="100%", md="420px"),
+    )
+
+    input_container = rx.flex(
+        resume_input,
+        width="100%",
+        justify=rx.breakpoints(initial="start", md="end"),
+        align="stretch",
+        style={"flex": "1 1 auto"},
     )
 
     copy_button = styled_button(
@@ -415,7 +424,7 @@ def session_panel() -> rx.Component:
         rx.vstack(
             rx.flex(
                 session_id_display,
-                resume_input,
+                input_container,
                 direction=row_direction,
                 gap="12px",
                 width="100%",

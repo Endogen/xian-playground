@@ -324,7 +324,7 @@ def session_panel() -> rx.Component:
     button_width = rx.breakpoints(initial="100%", md="auto")
     id_box_width = rx.breakpoints(initial="100%", md="280px")
     copy_container_width = rx.breakpoints(initial="100%", md="auto")
-    input_width = rx.breakpoints(initial="100%", md="auto")
+    input_width = id_box_width
 
     session_id_display = rx.code(
         rx.cond(
@@ -345,7 +345,7 @@ def session_panel() -> rx.Component:
     )
 
     resume_input = styled_input(
-        placeholder="Enter an existing session ID (UUID4 format)",
+        placeholder="Enter an existing session ID",
         value=PlaygroundState.resume_session_input,
         on_change=PlaygroundState.update_resume_session_input,
         font_family="'Fira Code', 'Monaco', 'Courier New', monospace",
@@ -353,7 +353,7 @@ def session_panel() -> rx.Component:
         width=input_width,
         flex="1 1 auto",
         min_width="0",
-        max_width=rx.breakpoints(initial="100%", md="420px"),
+        max_width=input_width,
     )
 
     input_container = rx.flex(

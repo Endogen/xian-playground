@@ -315,6 +315,106 @@ def styled_text_area(**kwargs) -> rx.Component:
 
 def session_panel() -> rx.Component:
     """Session controls and resume form."""
+
+    row_direction = rx.breakpoints(initial="column", md="row")
+    row_wrap = rx.breakpoints(initial="wrap", md="nowrap")
+    buttons_direction = rx.breakpoints(initial="column", md="row")
+    buttons_row_direction = rx.breakpoints(initial="column", md="row")
+    buttons_justify = rx.breakpoints(initial="start", md="end")
+    button_width = rx.breakpoints(initial="100%", md="auto")
+    id_box_width = rx.breakpoints(initial="100%", md="280px")
+    copy_container_width = rx.breakpoints(initial="100%", md="auto")
+    input_width = id_box_width
+
+    session_id_display = rx.code(
+        rx.cond(
+            PlaygroundState.session_id != "",
+            PlaygroundState.session_id,
+            "Pending...",
+        ),
+        color=COLORS["accent_cyan"],
+        font_size="13px",
+        font_family="'Fira Code', 'Monaco', 'Courier New', monospace",
+        padding="6px 10px",
+        background=COLORS["bg_tertiary"],
+        border_radius="6px",
+        letter_spacing="-0.01em",
+        width=id_box_width,
+        flex="0 0 auto",
+        min_width="0",
+    )
+
+    resume_input = styled_input(
+        placeholder="Enter an existing session ID",
+        value=PlaygroundState.resume_session_input,
+        on_change=PlaygroundState.update_resume_session_input,
+        font_family="'Fira Code', 'Monaco', 'Courier New', monospace",
+        font_size="13px",
+        width=input_width,
+        flex="1 1 auto",
+        min_width="0",
+        max_width=input_width,
+    )
+
+    input_container = rx.flex(
+        resume_input,
+        width="100%",
+        justify=rx.breakpoints(initial="start", md="end"),
+        align="stretch",
+        style={"flex": "1 1 auto"},
+    )
+
+    copy_button = styled_button(
+        "Copy ID",
+        color_scheme="cyan",
+        on_click=PlaygroundState.copy_session_id,
+        width=button_width,
+    )
+
+    resume_button = styled_button(
+        "Resume",
+        color_scheme="blue",
+        on_click=PlaygroundState.resume_session,
+        width=button_width,
+    )
+
+    new_session_button = styled_button(
+        "New Session",
+        color_scheme="purple",
+        on_click=PlaygroundState.start_new_session,
+        width=button_width,
+    )
+
+    copy_container = rx.flex(
+        copy_button,
+        width=copy_container_width,
+        justify="start",
+        align="stretch",
+        wrap="wrap",
+        style={"flex": "0 0 auto"},
+    )
+
+    actions_container = rx.flex(
+        resume_button,
+        new_session_button,
+        direction=buttons_direction,
+        gap="12px",
+        width="100%",
+        justify=buttons_justify,
+        align="stretch",
+        wrap="wrap",
+        style={"flex": "1 1 auto"},
+    )
+
+    buttons_row = rx.flex(
+        copy_container,
+        actions_container,
+        direction=buttons_row_direction,
+        gap="12px",
+        width="100%",
+        align="stretch",
+    )
+
     return card(
         section_header(
             "Session",
@@ -322,49 +422,16 @@ def session_panel() -> rx.Component:
             icon="shield",
         ),
         rx.vstack(
-            rx.hstack(
-                rx.code(
-                    rx.cond(
-                        PlaygroundState.session_id != "",
-                        PlaygroundState.session_id,
-                        "Pending...",
-                    ),
-                    color=COLORS["accent_cyan"],
-                    font_size="13px",
-                    font_family="'Fira Code', 'Monaco', 'Courier New', monospace",
-                    padding="6px 10px",
-                    background=COLORS["bg_tertiary"],
-                    border_radius="6px",
-                    letter_spacing="-0.01em",
-                ),
-                styled_button(
-                    "Copy ID",
-                    color_scheme="cyan",
-                    on_click=PlaygroundState.copy_session_id,
-                ),
-                styled_input(
-                    placeholder="Enter an existing session ID (UUID4 format)",
-                    value=PlaygroundState.resume_session_input,
-                    on_change=PlaygroundState.update_resume_session_input,
-                    font_family="'Fira Code', 'Monaco', 'Courier New', monospace",
-                    font_size="13px",
-                    flex="1",
-                    min_width="320px",
-                ),
-                styled_button(
-                    "Resume",
-                    color_scheme="blue",
-                    on_click=PlaygroundState.resume_session,
-                ),
-                styled_button(
-                    "New Session",
-                    color_scheme="purple",
-                    on_click=PlaygroundState.start_new_session,
-                ),
-                align_items="center",
-                width="100%",
+            rx.flex(
+                session_id_display,
+                input_container,
+                direction=row_direction,
                 gap="12px",
+                width="100%",
+                align="stretch",
+                wrap=row_wrap,
             ),
+            buttons_row,
             rx.cond(
                 PlaygroundState.session_error != "",
                 rx.text(
@@ -480,9 +547,9 @@ def environment_field_row(info: dict) -> rx.Component:
     )
 
 
-EDITOR_HEIGHT = "320px"
-STATE_HEIGHT = "360px"
 LOAD_VIEW_HEIGHT = "378px"
+EDITOR_HEIGHT = "320px"
+STATE_HEIGHT = LOAD_VIEW_HEIGHT
 
 
 def expert_section() -> rx.Component:
@@ -645,26 +712,6 @@ def editor_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
             width="100%",
             spacing="3",
         ),
-        rx.cond(
-            PlaygroundState.lint_results != [],
-            rx.box(
-                rx.foreach(
-                    PlaygroundState.lint_results,
-                    lambda message: rx.text(
-                        message,
-                        color=COLORS["warning"],
-                        size="2",
-                    ),
-                ),
-                padding="12px",
-                border=f"1px solid {COLORS['border']}",
-                border_radius="8px",
-                background=COLORS["bg_tertiary"],
-                width="100%",
-                gap="8px",
-            ),
-            rx.fragment(),
-        ),
         **card_kwargs,
     )
 
@@ -673,27 +720,36 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
     card_kwargs = card_kwargs or {}
     is_fullscreen = card_kwargs.get("flex") is not None
     panel_height = "100%" if is_fullscreen else LOAD_VIEW_HEIGHT
-    viewer_props: Dict[str, Any] = {
-        "display": "flex",
-        "flex_direction": "column",
-        "gap": "12px",
+    outer_panel_style: Dict[str, Any] = {
         "width": "100%",
+        "display": "flex",
+        "flexDirection": "column",
+        "gap": "12px",
+        "flex": "1 1 auto",
     }
     if is_fullscreen:
-        viewer_props.update(
+        outer_panel_style.update(
             {
-                "flex": "1 1 auto",
-                "min_height": "0",
+                "height": "100%",
+                "minHeight": "0",
             }
         )
     else:
-        viewer_props.update(
+        outer_panel_style.update(
             {
                 "height": panel_height,
-                "min_height": panel_height,
-                "max_height": panel_height,
+                "minHeight": panel_height,
+                "maxHeight": panel_height,
             }
         )
+
+    viewer_stack_style: Dict[str, Any] = {
+        "display": "flex",
+        "flexDirection": "column",
+        "gap": "12px",
+        "flex": "1 1 auto",
+        "minHeight": "0",
+    }
 
     def _code_viewer_style(is_full: bool, max_height: str) -> Dict[str, Any]:
         style: Dict[str, Any] = {
@@ -730,92 +786,93 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
             panel_id="load",
             icon="folder-open",
         ),
-        rx.hstack(
-            rx.box(
-                styled_select(
-                    items=PlaygroundState.deployed_contracts,
-                    value=PlaygroundState.load_selected_contract,
-                    placeholder="Select a contract",
-                    on_change=PlaygroundState.change_loaded_contract,
-                    disabled=PlaygroundState.deployed_contracts == [],
-                    width="100%",
-                ),
-                flex="1",
+        rx.box(
+            styled_select(
+                items=PlaygroundState.deployed_contracts,
+                value=PlaygroundState.load_selected_contract,
+                placeholder="Select a contract",
+                on_change=PlaygroundState.change_loaded_contract,
+                disabled=PlaygroundState.deployed_contracts == [],
+                width="100%",
             ),
-            styled_button(
-                "Remove Contract",
-                on_click=PlaygroundState.remove_selected_contract,
-                color_scheme="error",
-                disabled=PlaygroundState.load_selected_contract == "",
-            ),
-            spacing="3",
             width="100%",
-            align_items="center",
         ),
-        rx.cond(
-            PlaygroundState.load_selected_contract == "",
-            rx.box(
-                rx.text(
-                    "Select a deployed contract to review its source and exports.",
-                    color=COLORS["text_muted"],
-                    size="2",
-                ),
-                padding="12px",
-                border=f"1px dashed {COLORS['border']}",
-                border_radius="8px",
-            ),
-            rx.box(
-                rx.hstack(
+        rx.box(
+            rx.cond(
+                PlaygroundState.load_selected_contract == "",
+                rx.box(
                     rx.text(
-                        rx.cond(
-                            PlaygroundState.load_view_decompiled,
-                            "Decompiled",
-                            "Raw",
-                        ),
-                        color=COLORS["text_secondary"],
+                        "Select a deployed contract to review its source and exports.",
+                        color=COLORS["text_muted"],
                         size="2",
                     ),
-                    rx.spacer(),
-                    rx.switch(
-                        checked=PlaygroundState.load_view_decompiled,
-                        on_change=lambda value: PlaygroundState.toggle_load_view(),
-                        color_scheme="cyan",
-                    ),
-                    spacing="3",
-                    align_items="center",
-                    width="100%",
+                    padding="12px",
+                    border=f"1px dashed {COLORS['border']}",
+                    border_radius="8px",
                 ),
                 rx.box(
-                    rx.cond(
-                        PlaygroundState.load_view_decompiled,
-                        code_viewer(
-                            PlaygroundState.loaded_contract_decompiled,
-                            "python",
-                            "# Decompiled source unavailable.",
-                            font_size="12px",
-                            boxed=False,
-                            style=_code_viewer_style(is_fullscreen, panel_height),
+                    rx.hstack(
+                        rx.text(
+                            rx.cond(
+                                PlaygroundState.load_view_decompiled,
+                                "Decompiled",
+                                "Raw",
+                            ),
+                            color=COLORS["text_secondary"],
+                            size="2",
                         ),
-                        code_viewer(
-                            PlaygroundState.loaded_contract_code,
-                            "python",
-                            "# Source unavailable.",
-                            font_size="12px",
-                            boxed=False,
-                            style=_code_viewer_style(is_fullscreen, panel_height),
+                        rx.spacer(),
+                        rx.switch(
+                            checked=PlaygroundState.load_view_decompiled,
+                            on_change=lambda value: PlaygroundState.toggle_load_view(),
+                            color_scheme="cyan",
                         ),
+                        spacing="3",
+                        align_items="center",
+                        width="100%",
                     ),
-                    flex="1 1 auto",
-                    min_height="0",
-                    width="100%",
-                    display="flex",
-                    flex_direction="column",
+                    rx.box(
+                        rx.cond(
+                            PlaygroundState.load_view_decompiled,
+                            code_viewer(
+                                PlaygroundState.loaded_contract_decompiled,
+                                "python",
+                                "# Decompiled source unavailable.",
+                                font_size="12px",
+                                boxed=False,
+                                style=_code_viewer_style(is_fullscreen, panel_height),
+                            ),
+                            code_viewer(
+                                PlaygroundState.loaded_contract_code,
+                                "python",
+                                "# Source unavailable.",
+                                font_size="12px",
+                                boxed=False,
+                                style=_code_viewer_style(is_fullscreen, panel_height),
+                            ),
+                        ),
+                        flex="1 1 auto",
+                        min_height="0",
+                        width="100%",
+                        display="flex",
+                        flex_direction="column",
+                    ),
+                    styled_button(
+                        "Remove Contract",
+                        on_click=PlaygroundState.remove_selected_contract,
+                        color_scheme="error",
+                        disabled=PlaygroundState.load_selected_contract == "",
+                        width="100%",
+                        margin_top="auto",
+                    ),
+                    **viewer_stack_style,
                 ),
-                **viewer_props,
             ),
+            style=outer_panel_style,
         ),
         **card_kwargs,
     )
+
 
 
 def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
@@ -827,6 +884,7 @@ def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component
         "value": PlaygroundState.kwargs_input,
         "on_change": PlaygroundState.update_kwargs,
         "font_family": "'Fira Code', 'Monaco', 'Courier New', monospace",
+        "class_name": "playground-kwargs-textarea",
         "spell_check": False,
         "min_height": "120px",
         "height": "100%",

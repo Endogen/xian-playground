@@ -315,6 +315,87 @@ def styled_text_area(**kwargs) -> rx.Component:
 
 def session_panel() -> rx.Component:
     """Session controls and resume form."""
+
+    stack_direction = rx.breakpoints(initial="column", md="row")
+    button_width = rx.breakpoints(initial="100%", md="auto")
+
+    session_id_display = rx.code(
+        rx.cond(
+            PlaygroundState.session_id != "",
+            PlaygroundState.session_id,
+            "Pending...",
+        ),
+        color=COLORS["accent_cyan"],
+        font_size="13px",
+        font_family="'Fira Code', 'Monaco', 'Courier New', monospace",
+        padding="6px 10px",
+        background=COLORS["bg_tertiary"],
+        border_radius="6px",
+        letter_spacing="-0.01em",
+        width="100%",
+        flex="1 1 auto",
+        min_width="0",
+    )
+
+    copy_button = styled_button(
+        "Copy ID",
+        color_scheme="cyan",
+        on_click=PlaygroundState.copy_session_id,
+        width=button_width,
+    )
+
+    id_group = rx.flex(
+        session_id_display,
+        copy_button,
+        direction=stack_direction,
+        gap="12px",
+        align="stretch",
+        wrap="wrap",
+        width="100%",
+    )
+
+    resume_input = styled_input(
+        placeholder="Enter an existing session ID (UUID4 format)",
+        value=PlaygroundState.resume_session_input,
+        on_change=PlaygroundState.update_resume_session_input,
+        font_family="'Fira Code', 'Monaco', 'Courier New', monospace",
+        font_size="13px",
+        flex="1 1 auto",
+        width="100%",
+        min_width="0",
+    )
+
+    resume_button = styled_button(
+        "Resume",
+        color_scheme="blue",
+        on_click=PlaygroundState.resume_session,
+        width=button_width,
+    )
+
+    resume_group = rx.flex(
+        resume_input,
+        resume_button,
+        direction=stack_direction,
+        gap="12px",
+        align="stretch",
+        width="100%",
+        flex="1 1 auto",
+    )
+
+    new_session_button = styled_button(
+        "New Session",
+        color_scheme="purple",
+        on_click=PlaygroundState.start_new_session,
+        width=button_width,
+    )
+
+    new_session_group = rx.flex(
+        new_session_button,
+        width="100%",
+        justify="end",
+        align="stretch",
+    )
+
     return card(
         section_header(
             "Session",
@@ -322,48 +403,15 @@ def session_panel() -> rx.Component:
             icon="shield",
         ),
         rx.vstack(
-            rx.hstack(
-                rx.code(
-                    rx.cond(
-                        PlaygroundState.session_id != "",
-                        PlaygroundState.session_id,
-                        "Pending...",
-                    ),
-                    color=COLORS["accent_cyan"],
-                    font_size="13px",
-                    font_family="'Fira Code', 'Monaco', 'Courier New', monospace",
-                    padding="6px 10px",
-                    background=COLORS["bg_tertiary"],
-                    border_radius="6px",
-                    letter_spacing="-0.01em",
-                ),
-                styled_button(
-                    "Copy ID",
-                    color_scheme="cyan",
-                    on_click=PlaygroundState.copy_session_id,
-                ),
-                styled_input(
-                    placeholder="Enter an existing session ID (UUID4 format)",
-                    value=PlaygroundState.resume_session_input,
-                    on_change=PlaygroundState.update_resume_session_input,
-                    font_family="'Fira Code', 'Monaco', 'Courier New', monospace",
-                    font_size="13px",
-                    flex="1",
-                    min_width="320px",
-                ),
-                styled_button(
-                    "Resume",
-                    color_scheme="blue",
-                    on_click=PlaygroundState.resume_session,
-                ),
-                styled_button(
-                    "New Session",
-                    color_scheme="purple",
-                    on_click=PlaygroundState.start_new_session,
-                ),
-                align_items="center",
-                width="100%",
+            rx.flex(
+                id_group,
+                resume_group,
+                new_session_group,
+                direction=stack_direction,
                 gap="12px",
+                width="100%",
+                align="stretch",
+                wrap="wrap",
             ),
             rx.cond(
                 PlaygroundState.session_error != "",

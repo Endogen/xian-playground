@@ -117,3 +117,8 @@
   margin-top: 12px;
   padding: 0 !important;
 }
+
+.playground-kwargs-textarea textarea {
+  font-size: 12px !important;
+  line-height: 1.4 !important;
+}

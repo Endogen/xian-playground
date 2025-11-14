@@ -817,6 +817,7 @@ def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component
         "value": PlaygroundState.kwargs_input,
         "on_change": PlaygroundState.update_kwargs,
         "font_family": "'Fira Code', 'Monaco', 'Courier New', monospace",
+        "class_name": "playground-kwargs-textarea",
         "spell_check": False,
         "min_height": "120px",
         "height": "100%",

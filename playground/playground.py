@@ -652,6 +652,31 @@ def editor_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
             }
         )
 
+    lint_results_box = rx.cond(
+        PlaygroundState.lint_has_results,
+        rx.box(
+            rx.vstack(
+                rx.foreach(
+                    PlaygroundState.lint_results,
+                    lambda message: rx.text(
+                        message,
+                        color=COLORS["warning"],
+                        size="2",
+                    ),
+                ),
+                gap="8px",
+                width="100%",
+                align_items="start",
+            ),
+            padding="12px",
+            border=f"1px solid {COLORS['border']}",
+            border_radius="8px",
+            background=COLORS["bg_tertiary"],
+            width="100%",
+        ),
+        rx.fragment(),
+    )
+
     return card(
         section_header(
             "Write Contract",
@@ -712,6 +737,7 @@ def editor_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
             width="100%",
             spacing="3",
         ),
+        lint_results_box,
         **card_kwargs,
     )
 

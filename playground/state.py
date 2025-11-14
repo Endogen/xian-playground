@@ -87,6 +87,7 @@ class PlaygroundState(rx.State):
     state_editor: str = ""
     lint_results: List[str] = []
     linting: bool = False
+    lint_has_results: bool = False
 
     deployed_contracts: List[str] = []
     selected_contract: str = ""
@@ -349,6 +350,7 @@ class PlaygroundState(rx.State):
     def update_code(self, value: str):
         self.code_editor = value or ""
         self.lint_results = []
+        self.lint_has_results = False
 
     def update_contract_name(self, value: str):
         self.contract_name = value
@@ -510,6 +512,7 @@ class PlaygroundState(rx.State):
         self.state_dump = "{}"
         self.state_editor = "{}"
         self.lint_results = []
+        self.lint_has_results = False
         self._hydrate_code_editor(DEFAULT_CONTRACT, force_refresh=True)
         self.contract_name = DEFAULT_CONTRACT_NAME
         self.environment_editor = {
@@ -851,6 +854,7 @@ class PlaygroundState(rx.State):
         except Exception as exc:
             self.linting = False
             self.lint_results = []
+            self.lint_has_results = False
             return [rx.toast.error(f"Lint failed: {exc}")]
 
         self.linting = False
@@ -872,6 +876,7 @@ class PlaygroundState(rx.State):
                 formatted.append(str(result))
 
         self.lint_results = formatted
+        self.lint_has_results = bool(formatted)
 
         if formatted:
             return [

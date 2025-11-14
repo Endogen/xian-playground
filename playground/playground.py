@@ -316,8 +316,15 @@ def styled_text_area(**kwargs) -> rx.Component:
 def session_panel() -> rx.Component:
     """Session controls and resume form."""
 
-    stack_direction = rx.breakpoints(initial="column", md="row")
+    row_direction = rx.breakpoints(initial="column", md="row")
+    row_wrap = rx.breakpoints(initial="wrap", md="nowrap")
+    buttons_direction = rx.breakpoints(initial="column", md="row")
+    buttons_row_direction = rx.breakpoints(initial="column", md="row")
+    buttons_justify = rx.breakpoints(initial="start", md="end")
     button_width = rx.breakpoints(initial="100%", md="auto")
+    id_box_width = rx.breakpoints(initial="100%", md="280px")
+    copy_container_width = rx.breakpoints(initial="100%", md="auto")
+    input_width = rx.breakpoints(initial="100%", md="auto")
 
     session_id_display = rx.code(
         rx.cond(
@@ -332,7 +339,18 @@ def session_panel() -> rx.Component:
         background=COLORS["bg_tertiary"],
         border_radius="6px",
         letter_spacing="-0.01em",
-        width="100%",
+        width=id_box_width,
+        flex="0 0 auto",
+        min_width="0",
+    )
+
+    resume_input = styled_input(
+        placeholder="Enter an existing session ID (UUID4 format)",
+        value=PlaygroundState.resume_session_input,
+        on_change=PlaygroundState.update_resume_session_input,
+        font_family="'Fira Code', 'Monaco', 'Courier New', monospace",
+        font_size="13px",
+        width=input_width,
         flex="1 1 auto",
         min_width="0",
     )
@@ -344,42 +362,11 @@ def session_panel() -> rx.Component:
         width=button_width,
     )
 
-    id_group = rx.flex(
-        session_id_display,
-        copy_button,
-        direction=stack_direction,
-        gap="12px",
-        align="stretch",
-        wrap="wrap",
-        width="100%",
-    )
-
-    resume_input = styled_input(
-        placeholder="Enter an existing session ID (UUID4 format)",
-        value=PlaygroundState.resume_session_input,
-        on_change=PlaygroundState.update_resume_session_input,
-        font_family="'Fira Code', 'Monaco', 'Courier New', monospace",
-        font_size="13px",
-        flex="1 1 auto",
-        width="100%",
-        min_width="0",
-    )
-
     resume_button = styled_button(
         "Resume",
         color_scheme="blue",
         on_click=PlaygroundState.resume_session,
         width=button_width,
-    )
-
-    resume_group = rx.flex(
-        resume_input,
-        resume_button,
-        direction=stack_direction,
-        gap="12px",
-        align="stretch",
-        width="100%",
-        flex="1 1 auto",
     )
 
     new_session_button = styled_button(
@@ -389,10 +376,33 @@ def session_panel() -> rx.Component:
         width=button_width,
     )
 
-    new_session_group = rx.flex(
+    copy_container = rx.flex(
+        copy_button,
+        width=copy_container_width,
+        justify="start",
+        align="stretch",
+        wrap="wrap",
+        style={"flex": "0 0 auto"},
+    )
+
+    actions_container = rx.flex(
+        resume_button,
         new_session_button,
+        direction=buttons_direction,
+        gap="12px",
         width="100%",
-        justify="end",
+        justify=buttons_justify,
+        align="stretch",
+        wrap="wrap",
+        style={"flex": "1 1 auto"},
+    )
+
+    buttons_row = rx.flex(
+        copy_container,
+        actions_container,
+        direction=buttons_row_direction,
+        gap="12px",
+        width="100%",
         align="stretch",
     )
 
@@ -404,15 +414,15 @@ def session_panel() -> rx.Component:
         ),
         rx.vstack(
             rx.flex(
-                id_group,
-                resume_group,
-                new_session_group,
-                direction=stack_direction,
+                session_id_display,
+                resume_input,
+                direction=row_direction,
                 gap="12px",
                 width="100%",
                 align="stretch",
-                wrap="wrap",
+                wrap=row_wrap,
             ),
+            buttons_row,
             rx.cond(
                 PlaygroundState.session_error != "",
                 rx.text(

@@ -546,7 +546,7 @@ def environment_field_row(info: dict) -> rx.Component:
     )
 
 
-CARD_HEIGHT = "500px"
+CARD_HEIGHT = "400px"
 EDITOR_HEIGHT = CARD_HEIGHT
 LOAD_VIEW_HEIGHT = CARD_HEIGHT
 EXECUTE_HEIGHT = CARD_HEIGHT
@@ -1095,21 +1095,21 @@ def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component
                     on_change=PlaygroundState.change_selected_function,
                     width="100%",
                 ),
-            rx.box(
-                styled_text_area(**textarea_kwargs),
-                **textarea_container_props,
-            ),
-            rx.box(
-                styled_button(
-                    "Run Function",
-                    on_click=PlaygroundState.run_contract,
-                    color_scheme="success",
-                    style={"width": "100%"},
+                rx.box(
+                    styled_text_area(**textarea_kwargs),
+                    **textarea_container_props,
                 ),
-                width="100%",
-            ),
+                rx.box(
+                    styled_button(
+                        "Run Function",
+                        on_click=PlaygroundState.run_contract,
+                        color_scheme="success",
+                        style={"width": "100%"},
+                    ),
+                    width="100%",
+                ),
                 result_view,
-                spacing="3",
+                spacing="4",
                 width="100%",
                 flex="1 1 auto",
                 min_height="0",

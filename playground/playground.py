@@ -459,7 +459,6 @@ def styled_button(text: str, color_scheme: str = "blue", **kwargs) -> rx.Compone
     }
 
     bg_color = color_map.get(color_scheme, COLORS["accent_blue"])
-
     return rx.button(
         text,
         background=bg_color,
@@ -1062,6 +1061,7 @@ def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component
                 "Run Function",
                 on_click=PlaygroundState.run_contract,
                 color_scheme="success",
+                width="100%",
             ),
             result_view,
             spacing="3",
@@ -1095,15 +1095,19 @@ def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component
                     on_change=PlaygroundState.change_selected_function,
                     width="100%",
                 ),
-                rx.box(
-                    styled_text_area(**textarea_kwargs),
-                    **textarea_container_props,
-                ),
+            rx.box(
+                styled_text_area(**textarea_kwargs),
+                **textarea_container_props,
+            ),
+            rx.box(
                 styled_button(
                     "Run Function",
                     on_click=PlaygroundState.run_contract,
                     color_scheme="success",
+                    style={"width": "100%"},
                 ),
+                width="100%",
+            ),
                 result_view,
                 spacing="3",
                 width="100%",

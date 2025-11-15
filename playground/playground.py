@@ -632,23 +632,43 @@ def expert_section() -> rx.Component:
 def editor_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
     card_kwargs = card_kwargs or {}
     is_fullscreen = card_kwargs.get("flex") is not None
-    editor_height = "100%" if is_fullscreen else EDITOR_HEIGHT
+    editor_height = "100%"
 
+    outer_panel_style: Dict[str, Any] = {
+        "width": "100%",
+        "display": "flex",
+        "flexDirection": "column",
+        "gap": "12px",
+        "flex": "1 1 auto",
+    }
     editor_container_kwargs: Dict[str, Any] = {
         "width": "100%",
         "display": "flex",
         "min_height": EDITOR_HEIGHT,
-        "max_height": EDITOR_HEIGHT,
-        "height": EDITOR_HEIGHT,
+        "flex": "1 1 auto",
         "overflow": "hidden",
     }
     if is_fullscreen:
+        outer_panel_style.update(
+            {
+                "height": "100%",
+                "minHeight": "0",
+            }
+        )
         editor_container_kwargs.update(
             {
                 "flex": "1 1 auto",
                 "min_height": "0",
                 "max_height": None,
                 "height": "100%",
+            }
+        )
+    else:
+        outer_panel_style.update(
+            {
+                "height": LOAD_VIEW_HEIGHT,
+                "minHeight": LOAD_VIEW_HEIGHT,
+                "maxHeight": LOAD_VIEW_HEIGHT,
             }
         )
 
@@ -690,54 +710,63 @@ def editor_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
             on_change=PlaygroundState.update_contract_name,
         ),
         rx.box(
-            MonacoEditor.create(
-                default_value=PlaygroundState.code_editor,
-                language="python",
-                theme="vs-dark",
-                height=editor_height,
-                options={
-                    "automaticLayout": True,
-                    "tabSize": 4,
-                    "insertSpaces": True,
-                    "scrollBeyondLastLine": False,
-                    "wordWrap": "on",
-                    "minimap": {"enabled": False},
-                    "lineNumbers": "on",
-                    "renderWhitespace": "selection",
-                    "padding": {"top": 12, "bottom": 12},
-                },
-                on_change=PlaygroundState.update_code,
-                key=PlaygroundState.code_editor_revision,
-                class_name="playground-monaco",
-            ),
-            **editor_container_kwargs,
-        ),
-        rx.hstack(
-            styled_button(
-                "Save Draft",
-                on_click=PlaygroundState.save_code_draft,
-                color_scheme="blue",
-            ),
-            rx.spacer(),
-            styled_button(
-                "Deploy Contract",
-                on_click=PlaygroundState.deploy_contract,
-                color_scheme="purple",
-            ),
-            styled_button(
-                rx.cond(
-                    PlaygroundState.linting,
-                    "Linting...",
-                    "Run Linter",
+            rx.vstack(
+                rx.box(
+                    MonacoEditor.create(
+                        default_value=PlaygroundState.code_editor,
+                        language="python",
+                        theme="vs-dark",
+                        height=editor_height,
+                        options={
+                            "automaticLayout": True,
+                            "tabSize": 4,
+                            "insertSpaces": True,
+                            "scrollBeyondLastLine": False,
+                            "wordWrap": "on",
+                            "minimap": {"enabled": False},
+                            "lineNumbers": "on",
+                            "renderWhitespace": "selection",
+                            "padding": {"top": 12, "bottom": 12},
+                        },
+                        on_change=PlaygroundState.update_code,
+                        key=PlaygroundState.code_editor_revision,
+                        class_name="playground-monaco",
+                    ),
+                    **editor_container_kwargs,
                 ),
-                on_click=PlaygroundState.lint_contract,
-                color_scheme="cyan",
-                disabled=PlaygroundState.linting,
+                rx.hstack(
+                    styled_button(
+                        "Save Draft",
+                        on_click=PlaygroundState.save_code_draft,
+                        color_scheme="blue",
+                    ),
+                    rx.spacer(),
+                    styled_button(
+                        "Deploy Contract",
+                        on_click=PlaygroundState.deploy_contract,
+                        color_scheme="purple",
+                    ),
+                    styled_button(
+                        rx.cond(
+                            PlaygroundState.linting,
+                            "Linting...",
+                            "Run Linter",
+                        ),
+                        on_click=PlaygroundState.lint_contract,
+                        color_scheme="cyan",
+                        disabled=PlaygroundState.linting,
+                    ),
+                    width="100%",
+                    spacing="3",
+                ),
+                lint_results_box,
+                spacing="3",
+                width="100%",
+                flex="1 1 auto",
+                min_height="0",
             ),
-            width="100%",
-            spacing="3",
+            style=outer_panel_style,
         ),
-        lint_results_box,
         **card_kwargs,
     )
 

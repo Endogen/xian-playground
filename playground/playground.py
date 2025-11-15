@@ -1265,6 +1265,37 @@ def state_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
     if not is_fullscreen:
         inner_panel_style["height"] = "100%"
 
+    viewer_content = rx.cond(
+        PlaygroundState.state_is_editing,
+        rx.box(
+            styled_text_area(
+                value=PlaygroundState.state_editor,
+                on_change=PlaygroundState.update_state_editor,
+                font_family="'Fira Code', 'Monaco', 'Courier New', monospace",
+                overflow_y="auto",
+                spell_check=False,
+                height="100%",
+                style=inner_panel_style,
+            ),
+            width="100%",
+            flex="1 1 auto",
+            min_height="0",
+        ),
+        rx.box(
+            code_viewer(
+                PlaygroundState.state_dump,
+                "json",
+                "State is empty.",
+                font_size="12px",
+                boxed=False,
+                style={**inner_panel_style},
+            ),
+            width="100%",
+            flex="1 1 auto",
+            min_height="0",
+        ),
+    )
+
     state_panel = rx.box(
         rx.vstack(
             rx.hstack(
@@ -1307,33 +1338,9 @@ def state_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
                 align_items="center",
                 spacing="3",
                 width="100%",
+                flex_wrap="wrap",
             ),
-            rx.cond(
-                PlaygroundState.state_is_editing,
-                rx.box(
-                    styled_text_area(
-                        value=PlaygroundState.state_editor,
-                        on_change=PlaygroundState.update_state_editor,
-                        font_family="'Fira Code', 'Monaco', 'Courier New', monospace",
-                        overflow_y="auto",
-                        spell_check=False,
-                        height="100%",
-                        style=inner_panel_style,
-                    ),
-                    style=outer_panel_style,
-                ),
-                rx.box(
-                    code_viewer(
-                        PlaygroundState.state_dump,
-                        "json",
-                        "State is empty.",
-                        font_size="12px",
-                        boxed=False,
-                        style={**inner_panel_style},
-                    ),
-                    style=outer_panel_style,
-                ),
-            ),
+            viewer_content,
             rx.hstack(
                 rx.alert_dialog.root(
                     rx.alert_dialog.trigger(

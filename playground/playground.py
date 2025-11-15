@@ -546,7 +546,7 @@ def environment_field_row(info: dict) -> rx.Component:
     )
 
 
-CARD_HEIGHT = "350px"
+CARD_HEIGHT = "500px"
 EDITOR_HEIGHT = CARD_HEIGHT
 LOAD_VIEW_HEIGHT = CARD_HEIGHT
 EXECUTE_HEIGHT = CARD_HEIGHT
@@ -1266,37 +1266,34 @@ def state_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
         "borderRadius": "8px",
         "padding": "12px",
     }
-    if not is_fullscreen:
-        inner_panel_style["height"] = "100%"
+
+    viewer_style: Dict[str, Any] = {
+        **inner_panel_style,
+        "width": "100%",
+        "flex": "1 1 auto",
+        "minHeight": "0",
+    }
+    if is_fullscreen:
+        viewer_style["height"] = "100%"
 
     viewer_content = rx.cond(
         PlaygroundState.state_is_editing,
-        rx.box(
-            styled_text_area(
-                value=PlaygroundState.state_editor,
-                on_change=PlaygroundState.update_state_editor,
-                font_family="'Fira Code', 'Monaco', 'Courier New', monospace",
-                overflow_y="auto",
-                spell_check=False,
-                height="100%",
-                style=inner_panel_style,
-            ),
-            width="100%",
-            flex="1 1 auto",
-            min_height="0",
+        styled_text_area(
+            value=PlaygroundState.state_editor,
+            on_change=PlaygroundState.update_state_editor,
+            font_family="'Fira Code', 'Monaco', 'Courier New', monospace",
+            overflow_y="auto",
+            spell_check=False,
+            height="100%" if is_fullscreen else "auto",
+            style=viewer_style,
         ),
-        rx.box(
-            code_viewer(
-                PlaygroundState.state_dump,
-                "json",
-                "State is empty.",
-                font_size="12px",
-                boxed=False,
-                style={**inner_panel_style},
-            ),
-            width="100%",
-            flex="1 1 auto",
-            min_height="0",
+        code_viewer(
+            PlaygroundState.state_dump,
+            "json",
+            "State is empty.",
+            font_size="12px",
+            boxed=False,
+            style=viewer_style,
         ),
     )
 

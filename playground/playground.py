@@ -644,7 +644,7 @@ def editor_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
     editor_container_kwargs: Dict[str, Any] = {
         "width": "100%",
         "display": "flex",
-        "min_height": EDITOR_HEIGHT,
+        "min_height": "0",
         "flex": "1 1 auto",
         "overflow": "hidden",
     }
@@ -676,17 +676,39 @@ def editor_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
         PlaygroundState.lint_has_results,
         rx.box(
             rx.vstack(
-                rx.foreach(
-                    PlaygroundState.lint_results,
-                    lambda message: rx.text(
-                        message,
+                rx.hstack(
+                    rx.icon(tag="triangle_alert", size=18, color=COLORS["warning"]),
+                    rx.heading(
+                        "Lint Findings",
+                        size="3",
                         color=COLORS["warning"],
-                        size="2",
+                        font_weight="600",
                     ),
+                    align_items="center",
+                    gap="8px",
+                    width="100%",
                 ),
-                gap="8px",
+                rx.box(
+                    rx.vstack(
+                        rx.foreach(
+                            PlaygroundState.lint_results,
+                            lambda message: rx.text(
+                                message,
+                                color=COLORS["warning"],
+                                size="2",
+                            ),
+                        ),
+                        gap="8px",
+                        width="100%",
+                        align_items="start",
+                    ),
+                    max_height="160px",
+                    overflow_y="auto",
+                    width="100%",
+                ),
+                gap="12px",
                 width="100%",
-                align_items="start",
+                align_items="stretch",
             ),
             padding="12px",
             border=f"1px solid {COLORS['border']}",
@@ -711,7 +733,7 @@ def editor_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
         ),
         rx.box(
             rx.vstack(
-                rx.box(
+                rx.flex(
                     MonacoEditor.create(
                         default_value=PlaygroundState.code_editor,
                         language="python",

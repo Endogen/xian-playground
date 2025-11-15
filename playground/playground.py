@@ -547,10 +547,9 @@ def environment_field_row(info: dict) -> rx.Component:
     )
 
 
-CARD_SECTION_HEIGHT = "400px"
-LOAD_VIEW_HEIGHT = CARD_SECTION_HEIGHT
-EDITOR_HEIGHT = CARD_SECTION_HEIGHT
-STATE_HEIGHT = "350px"
+LOAD_VIEW_HEIGHT = "300px"
+EDITOR_HEIGHT = "300px"
+STATE_HEIGHT = "500px"
 
 
 def expert_section() -> rx.Component:
@@ -641,13 +640,15 @@ def editor_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
         "flexDirection": "column",
         "gap": "12px",
         "flex": "1 1 auto",
+        "minHeight": LOAD_VIEW_HEIGHT,
     }
     editor_container_kwargs: Dict[str, Any] = {
         "width": "100%",
         "display": "flex",
-        "min_height": "0",
         "flex": "1 1 auto",
         "overflow": "hidden",
+        "min_height": "0",
+        "height": "100%",
     }
     if is_fullscreen:
         outer_panel_style.update(
@@ -662,14 +663,6 @@ def editor_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
                 "min_height": "0",
                 "max_height": None,
                 "height": "100%",
-            }
-        )
-    else:
-        outer_panel_style.update(
-            {
-                "height": LOAD_VIEW_HEIGHT,
-                "minHeight": LOAD_VIEW_HEIGHT,
-                "maxHeight": LOAD_VIEW_HEIGHT,
             }
         )
 
@@ -797,27 +790,19 @@ def editor_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
 def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
     card_kwargs = card_kwargs or {}
     is_fullscreen = card_kwargs.get("flex") is not None
-    panel_height = "100%" if is_fullscreen else LOAD_VIEW_HEIGHT
     outer_panel_style: Dict[str, Any] = {
         "width": "100%",
         "display": "flex",
         "flexDirection": "column",
         "gap": "12px",
         "flex": "1 1 auto",
+        "minHeight": LOAD_VIEW_HEIGHT,
     }
     if is_fullscreen:
         outer_panel_style.update(
             {
                 "height": "100%",
                 "minHeight": "0",
-            }
-        )
-    else:
-        outer_panel_style.update(
-            {
-                "height": panel_height,
-                "minHeight": panel_height,
-                "maxHeight": panel_height,
             }
         )
 
@@ -829,7 +814,7 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
         "minHeight": "0",
     }
 
-    def _code_viewer_style(is_full: bool, max_height: str) -> Dict[str, Any]:
+    def _code_viewer_style(is_full: bool) -> Dict[str, Any]:
         style: Dict[str, Any] = {
             "width": "100%",
             "background": COLORS["bg_tertiary"],
@@ -837,6 +822,8 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
             "borderRadius": "8px",
             "padding": "12px",
             "overflow": "auto",
+            "flex": "1 1 auto",
+            "minHeight": "0",
         }
         if is_full:
             style.update(
@@ -844,15 +831,6 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
                     "flex": "1 1 auto",
                     "minHeight": "0",
                     "height": "100%",
-                }
-            )
-        else:
-            style.update(
-                {
-                    "flex": "1 1 auto",
-                    "height": "100%",
-                    "minHeight": "0",
-                    "maxHeight": max_height,
                 }
             )
         return style
@@ -918,7 +896,7 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
                                 "# Decompiled source unavailable.",
                                 font_size="12px",
                                 boxed=False,
-                                style=_code_viewer_style(is_fullscreen, panel_height),
+                                style=_code_viewer_style(is_fullscreen),
                             ),
                             code_viewer(
                                 PlaygroundState.loaded_contract_code,
@@ -926,7 +904,7 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
                                 "# Source unavailable.",
                                 font_size="12px",
                                 boxed=False,
-                                style=_code_viewer_style(is_fullscreen, panel_height),
+                                style=_code_viewer_style(is_fullscreen),
                             ),
                         ),
                         flex="1 1 auto",

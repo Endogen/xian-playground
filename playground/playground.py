@@ -642,8 +642,23 @@ def editor_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
         "flexDirection": "column",
         "gap": "12px",
         "flex": "1 1 auto",
-        "minHeight": LOAD_VIEW_HEIGHT,
     }
+    if is_fullscreen:
+        outer_panel_style.update(
+            {
+                "height": "100%",
+                "minHeight": "0",
+            }
+        )
+    else:
+        outer_panel_style.update(
+            {
+                "height": EDITOR_HEIGHT,
+                "minHeight": EDITOR_HEIGHT,
+                "maxHeight": EDITOR_HEIGHT,
+            }
+        )
+
     editor_container_kwargs: Dict[str, Any] = {
         "width": "100%",
         "display": "flex",
@@ -653,18 +668,9 @@ def editor_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
         "height": "100%",
     }
     if is_fullscreen:
-        outer_panel_style.update(
-            {
-                "height": "100%",
-                "minHeight": "0",
-            }
-        )
         editor_container_kwargs.update(
             {
-                "flex": "1 1 auto",
-                "min_height": "0",
                 "max_height": None,
-                "height": "100%",
             }
         )
 
@@ -722,13 +728,14 @@ def editor_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
             panel_id="write",
             icon="file-pen",
         ),
-        styled_input(
-            placeholder="Contract name",
-            value=PlaygroundState.contract_name,
-            on_change=PlaygroundState.update_contract_name,
-        ),
         rx.box(
             rx.vstack(
+                styled_input(
+                    placeholder="Contract name",
+                    value=PlaygroundState.contract_name,
+                    on_change=PlaygroundState.update_contract_name,
+                    width="100%",
+                ),
                 rx.flex(
                     MonacoEditor.create(
                         default_value=PlaygroundState.code_editor,
@@ -798,13 +805,20 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
         "flexDirection": "column",
         "gap": "12px",
         "flex": "1 1 auto",
-        "minHeight": LOAD_VIEW_HEIGHT,
     }
     if is_fullscreen:
         outer_panel_style.update(
             {
                 "height": "100%",
                 "minHeight": "0",
+            }
+        )
+    else:
+        outer_panel_style.update(
+            {
+                "height": LOAD_VIEW_HEIGHT,
+                "minHeight": LOAD_VIEW_HEIGHT,
+                "maxHeight": LOAD_VIEW_HEIGHT,
             }
         )
 
@@ -814,11 +828,13 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
         "gap": "12px",
         "flex": "1 1 auto",
         "minHeight": "0",
+        "width": "100%",
     }
 
     def _code_viewer_style(is_full: bool) -> Dict[str, Any]:
         style: Dict[str, Any] = {
             "width": "100%",
+            "maxWidth": "100%",
             "background": COLORS["bg_tertiary"],
             "border": f"1px solid {COLORS['border']}",
             "borderRadius": "8px",
@@ -837,14 +853,8 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
             )
         return style
 
-    return card(
-        section_header(
-            "Load Contract",
-            "Inspect deployed contract source code.",
-            panel_id="load",
-            icon="folder-open",
-        ),
-        rx.box(
+    load_panel = rx.box(
+        rx.vstack(
             styled_select(
                 items=PlaygroundState.deployed_contracts,
                 value=PlaygroundState.load_selected_contract,
@@ -853,9 +863,6 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
                 disabled=PlaygroundState.deployed_contracts == [],
                 width="100%",
             ),
-            width="100%",
-        ),
-        rx.box(
             rx.cond(
                 PlaygroundState.load_selected_contract == "",
                 rx.box(
@@ -888,6 +895,7 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
                         spacing="3",
                         align_items="center",
                         width="100%",
+                        flex_wrap="wrap",
                     ),
                     rx.box(
                         rx.cond(
@@ -926,8 +934,22 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
                     **viewer_stack_style,
                 ),
             ),
-            style=outer_panel_style,
+            spacing="3",
+            width="100%",
+            flex="1 1 auto",
+            min_height="0",
         ),
+        style=outer_panel_style,
+    )
+
+    return card(
+        section_header(
+            "Load Contract",
+            "Inspect deployed contract source code.",
+            panel_id="load",
+            icon="folder-open",
+        ),
+        load_panel,
         **card_kwargs,
     )
 
@@ -936,6 +958,30 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
 def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
     card_kwargs = card_kwargs or {}
     is_fullscreen = card_kwargs.get("flex") is not None
+
+    outer_panel_style: Dict[str, Any] = {
+        "width": "100%",
+        "display": "flex",
+        "flexDirection": "column",
+        "gap": "12px",
+        "flex": "1 1 auto",
+        "minHeight": EXECUTE_HEIGHT,
+    }
+    if is_fullscreen:
+        outer_panel_style.update(
+            {
+                "height": "100%",
+                "minHeight": "0",
+            }
+        )
+    else:
+        outer_panel_style.update(
+            {
+                "height": EXECUTE_HEIGHT,
+                "minHeight": EXECUTE_HEIGHT,
+                "maxHeight": EXECUTE_HEIGHT,
+            }
+        )
 
     textarea_kwargs: Dict[str, Any] = {
         "placeholder": 'Kwargs as JSON, e.g. {"to": "alice", "amount": 25}',
@@ -956,6 +1002,76 @@ def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component
         "flex_direction": "column",
     }
 
+    result_view = rx.cond(
+        PlaygroundState.run_result == "",
+        rx.fragment(),
+        rx.vstack(
+            rx.hstack(
+                rx.icon(tag="terminal", size=18, color=COLORS["accent_cyan"]),
+                rx.heading(
+                    "Result",
+                    size="3",
+                    color=COLORS["text_primary"],
+                    font_weight="600",
+                ),
+                align_items="center",
+                gap="8px",
+                width="100%",
+            ),
+            code_viewer(
+                PlaygroundState.run_result,
+                "json",
+                "Awaiting execution...",
+                font_size="12px",
+                boxed=False,
+                style={
+                    "width": "100%",
+                    "fontSize": "12px",
+                    "maxHeight": "50vh" if is_fullscreen else "300px",
+                    "overflow": "auto",
+                    "border": f"1px solid {COLORS['border']}",
+                    "borderRadius": "8px",
+                    "padding": "12px",
+                    "background": COLORS["bg_tertiary"],
+                },
+            ),
+            spacing="3",
+            width="100%",
+        ),
+    )
+
+    panel_body = rx.box(
+        rx.vstack(
+            styled_select(
+                items=PlaygroundState.deployed_contracts,
+                value=PlaygroundState.selected_contract,
+                placeholder="Select a contract",
+                on_change=PlaygroundState.change_selected_contract,
+            ),
+            styled_select(
+                items=PlaygroundState.available_functions,
+                value=PlaygroundState.function_name,
+                placeholder="Select a function",
+                on_change=PlaygroundState.change_selected_function,
+            ),
+            rx.box(
+                styled_text_area(**textarea_kwargs),
+                **textarea_container_props,
+            ),
+            styled_button(
+                "Run Function",
+                on_click=PlaygroundState.run_contract,
+                color_scheme="success",
+            ),
+            result_view,
+            spacing="3",
+            width="100%",
+            flex="1 1 auto",
+            min_height="0",
+        ),
+        style=outer_panel_style,
+    )
+
     return card(
         section_header(
             "Execute Contract",
@@ -963,63 +1079,38 @@ def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component
             panel_id="execute",
             icon="play",
         ),
-        styled_select(
-            items=PlaygroundState.deployed_contracts,
-            value=PlaygroundState.selected_contract,
-            placeholder="Select a contract",
-            on_change=PlaygroundState.change_selected_contract,
-        ),
-        styled_select(
-            items=PlaygroundState.available_functions,
-            value=PlaygroundState.function_name,
-            placeholder="Select a function",
-            on_change=PlaygroundState.change_selected_function,
-        ),
         rx.box(
-            styled_text_area(**textarea_kwargs),
-            **textarea_container_props,
-        ),
-        styled_button(
-            "Run Function",
-            on_click=PlaygroundState.run_contract,
-            color_scheme="success",
-        ),
-        rx.cond(
-            PlaygroundState.run_result == "",
-            rx.fragment(),
             rx.vstack(
-                rx.hstack(
-                    rx.icon(tag="terminal", size=18, color=COLORS["accent_cyan"]),
-                    rx.heading(
-                        "Result",
-                        size="3",
-                        color=COLORS["text_primary"],
-                        font_weight="600",
-                    ),
-                    align_items="center",
-                    gap="8px",
+                styled_select(
+                    items=PlaygroundState.deployed_contracts,
+                    value=PlaygroundState.selected_contract,
+                    placeholder="Select a contract",
+                    on_change=PlaygroundState.change_selected_contract,
                     width="100%",
                 ),
-                code_viewer(
-                    PlaygroundState.run_result,
-                    "json",
-                    "Awaiting execution...",
-                    font_size="12px",
-                    boxed=False,
-                    style={
-                        "width": "100%",
-                        "fontSize": "12px",
-                        "maxHeight": "50vh" if is_fullscreen else "300px",
-                        "overflow": "auto",
-                        "border": f"1px solid {COLORS['border']}",
-                        "borderRadius": "8px",
-                        "padding": "12px",
-                        "background": COLORS["bg_tertiary"],
-                    },
+                styled_select(
+                    items=PlaygroundState.available_functions,
+                    value=PlaygroundState.function_name,
+                    placeholder="Select a function",
+                    on_change=PlaygroundState.change_selected_function,
+                    width="100%",
                 ),
+                rx.box(
+                    styled_text_area(**textarea_kwargs),
+                    **textarea_container_props,
+                ),
+                styled_button(
+                    "Run Function",
+                    on_click=PlaygroundState.run_contract,
+                    color_scheme="success",
+                ),
+                result_view,
                 spacing="3",
                 width="100%",
+                flex="1 1 auto",
+                min_height="0",
             ),
+            style=outer_panel_style,
         ),
         **card_kwargs,
     )
@@ -1138,30 +1229,6 @@ def state_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
     is_fullscreen = card_kwargs.get("flex") is not None
     panel_height = "100%" if is_fullscreen else STATE_HEIGHT
 
-    header_actions = rx.cond(
-        PlaygroundState.state_is_editing,
-        rx.hstack(
-            styled_button(
-                "Save Changes",
-                color_scheme="success",
-                on_click=PlaygroundState.toggle_state_editor,
-            ),
-            styled_button(
-                "Cancel",
-                color_scheme="error",
-                on_click=PlaygroundState.cancel_state_editing,
-            ),
-            spacing="3",
-            align="center",
-            justify="end",
-        ),
-        styled_button(
-            "Edit State",
-            color_scheme="cyan",
-            on_click=PlaygroundState.toggle_state_editor,
-        ),
-    )
-
     outer_panel_style: Dict[str, Any] = {
         "width": "100%",
         "display": "flex",
@@ -1198,6 +1265,155 @@ def state_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
     if not is_fullscreen:
         inner_panel_style["height"] = "100%"
 
+    state_panel = rx.box(
+        rx.vstack(
+            rx.hstack(
+                rx.checkbox(
+                    checked=PlaygroundState.show_internal_state,
+                    on_change=PlaygroundState.set_show_internal_state,
+                    color_scheme="cyan",
+                ),
+                rx.text(
+                    "Show protected state keys",
+                    color=COLORS["text_primary"],
+                    size="2",
+                    cursor="pointer",
+                    on_click=PlaygroundState.toggle_show_internal_state,
+                ),
+                rx.spacer(),
+                rx.cond(
+                    PlaygroundState.state_is_editing,
+                    rx.hstack(
+                        styled_button(
+                            "Save Changes",
+                            color_scheme="success",
+                            on_click=PlaygroundState.toggle_state_editor,
+                        ),
+                        styled_button(
+                            "Cancel",
+                            color_scheme="error",
+                            on_click=PlaygroundState.cancel_state_editing,
+                        ),
+                        spacing="3",
+                        align="center",
+                        justify="end",
+                    ),
+                    styled_button(
+                        "Edit State",
+                        color_scheme="cyan",
+                        on_click=PlaygroundState.toggle_state_editor,
+                    ),
+                ),
+                align_items="center",
+                spacing="3",
+                width="100%",
+            ),
+            rx.cond(
+                PlaygroundState.state_is_editing,
+                rx.box(
+                    styled_text_area(
+                        value=PlaygroundState.state_editor,
+                        on_change=PlaygroundState.update_state_editor,
+                        font_family="'Fira Code', 'Monaco', 'Courier New', monospace",
+                        overflow_y="auto",
+                        spell_check=False,
+                        height="100%",
+                        style=inner_panel_style,
+                    ),
+                    style=outer_panel_style,
+                ),
+                rx.box(
+                    code_viewer(
+                        PlaygroundState.state_dump,
+                        "json",
+                        "State is empty.",
+                        font_size="12px",
+                        boxed=False,
+                        style={**inner_panel_style},
+                    ),
+                    style=outer_panel_style,
+                ),
+            ),
+            rx.hstack(
+                rx.alert_dialog.root(
+                    rx.alert_dialog.trigger(
+                        styled_button(
+                            "Clear All State",
+                            color_scheme="error",
+                        ),
+                    ),
+                    rx.alert_dialog.content(
+                        rx.vstack(
+                            rx.alert_dialog.title(
+                                "Clear all contracts and runtime state?",
+                            ),
+                            rx.alert_dialog.description(
+                                "This wipes every deployed contract (except the system submission contract) and resets the driver. This cannot be undone.",
+                            ),
+                            rx.hstack(
+                                rx.alert_dialog.cancel(
+                                    styled_button(
+                                        "Cancel",
+                                        color_scheme="blue",
+                                    ),
+                                ),
+                                rx.alert_dialog.action(
+                                    styled_button(
+                                        "Confirm Clear",
+                                        color_scheme="error",
+                                        on_click=PlaygroundState.confirm_clear_state,
+                                    ),
+                                ),
+                                spacing="3",
+                                justify="end",
+                                width="100%",
+                            ),
+                            spacing="4",
+                            align_items="stretch",
+                        ),
+                        max_width="420px",
+                        background=COLORS["bg_secondary"],
+                        border=f"1px solid {COLORS['border']}",
+                        border_radius="12px",
+                        padding="24px",
+                    ),
+                ),
+                rx.spacer(),
+                styled_button(
+                    "Export State",
+                    on_click=PlaygroundState.export_state,
+                    color_scheme="cyan",
+                ),
+                rx.upload(
+                    styled_button(
+                        "Import State",
+                        color_scheme="purple",
+                    ),
+                    accept={"application/json": [".json"]},
+                    multiple=False,
+                    max_files=1,
+                    on_drop=PlaygroundState.import_state,
+                    no_drag=True,
+                    style={
+                        "display": "inline-flex",
+                        "border": "none",
+                        "padding": "0",
+                        "background": "transparent",
+                    },
+                    class_name="playground-upload",
+                ),
+                spacing="3",
+                align_items="center",
+                width="100%",
+            ),
+            spacing="3",
+            width="100%",
+            flex="1 1 auto",
+            min_height="0",
+        ),
+        style=outer_panel_style,
+    )
+
     return card(
         section_header(
             "Contract State",
@@ -1205,123 +1421,7 @@ def state_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
             panel_id="state",
             icon="database",
         ),
-        rx.hstack(
-            rx.checkbox(
-                checked=PlaygroundState.show_internal_state,
-                on_change=PlaygroundState.set_show_internal_state,
-                color_scheme="cyan",
-            ),
-            rx.text(
-                "Show protected state keys",
-                color=COLORS["text_primary"],
-                size="2",
-                cursor="pointer",
-                on_click=PlaygroundState.toggle_show_internal_state,
-            ),
-            rx.spacer(),
-            header_actions,
-            align_items="center",
-            spacing="3",
-            width="100%",
-        ),
-        rx.cond(
-            PlaygroundState.state_is_editing,
-            rx.box(
-                styled_text_area(
-                    value=PlaygroundState.state_editor,
-                    on_change=PlaygroundState.update_state_editor,
-                    font_family="'Fira Code', 'Monaco', 'Courier New', monospace",
-                    overflow_y="auto",
-                    spell_check=False,
-                    height="100%",
-                    style=inner_panel_style,
-                ),
-                style=outer_panel_style,
-            ),
-            rx.box(
-                code_viewer(
-                    PlaygroundState.state_dump,
-                    "json",
-                    "State is empty.",
-                    font_size="12px",
-                    boxed=False,
-                    style={**inner_panel_style},
-                ),
-                style=outer_panel_style,
-            ),
-        ),
-        rx.hstack(
-            rx.alert_dialog.root(
-                rx.alert_dialog.trigger(
-                    styled_button(
-                        "Clear All State",
-                        color_scheme="error",
-                    ),
-                ),
-                rx.alert_dialog.content(
-                    rx.vstack(
-                        rx.alert_dialog.title(
-                            "Clear all contracts and runtime state?",
-                        ),
-                        rx.alert_dialog.description(
-                            "This wipes every deployed contract (except the system submission contract) and resets the driver. This cannot be undone.",
-                        ),
-                        rx.hstack(
-                            rx.alert_dialog.cancel(
-                                styled_button(
-                                    "Cancel",
-                                    color_scheme="blue",
-                                ),
-                            ),
-                            rx.alert_dialog.action(
-                                styled_button(
-                                    "Confirm Clear",
-                                    color_scheme="error",
-                                    on_click=PlaygroundState.confirm_clear_state,
-                                ),
-                            ),
-                            spacing="3",
-                            justify="end",
-                            width="100%",
-                        ),
-                        spacing="4",
-                        align_items="stretch",
-                    ),
-                    max_width="420px",
-                    background=COLORS["bg_secondary"],
-                    border=f"1px solid {COLORS['border']}",
-                    border_radius="12px",
-                    padding="24px",
-                ),
-            ),
-            rx.spacer(),
-            styled_button(
-                "Export State",
-                on_click=PlaygroundState.export_state,
-                color_scheme="cyan",
-            ),
-            rx.upload(
-                styled_button(
-                    "Import State",
-                    color_scheme="purple",
-                ),
-                accept={"application/json": [".json"]},
-                multiple=False,
-                max_files=1,
-                on_drop=PlaygroundState.import_state,
-                no_drag=True,
-                style={
-                    "display": "inline-flex",
-                    "border": "none",
-                    "padding": "0",
-                    "background": "transparent",
-                },
-                class_name="playground-upload",
-            ),
-            spacing="3",
-            align_items="center",
-            width="100%",
-        ),
+        state_panel,
         **card_kwargs,
     )
 

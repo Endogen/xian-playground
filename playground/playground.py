@@ -596,7 +596,7 @@ def expert_section() -> rx.Component:
                     rx.box(
                         rx.vstack(
                             rx.text(
-                                "Note: ctx.caller is managed by the runtime during contract-to-contract calls and cannot be overridden here.",
+                                "Note: The environment variable 'caller' is managed by the runtime during contract-to-contract calls and cannot be overridden here.",
                                 color=COLORS["text_secondary"],
                                 font_style="italic",
                                 size="1",

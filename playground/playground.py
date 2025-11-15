@@ -332,6 +332,15 @@ def panel_stack(
         **box_kwargs,
     )
 
+
+def resolve_panel_context(
+    card_kwargs: Dict[str, Any] | None, base_height: str | None
+) -> tuple[Dict[str, Any], bool, Dict[str, Any]]:
+    """Normalize card kwargs and return fullscreen flag plus base style."""
+    card_kwargs = card_kwargs or {}
+    is_fullscreen = card_kwargs.get("flex") is not None
+    return card_kwargs, is_fullscreen, panel_style(base_height, is_fullscreen)
+
 def styled_input(**kwargs) -> rx.Component:
     """Styled input field with dark theme."""
     default_style = {
@@ -683,8 +692,7 @@ def expert_section() -> rx.Component:
 
 
 def editor_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
-    card_kwargs = card_kwargs or {}
-    is_fullscreen = card_kwargs.get("flex") is not None
+    card_kwargs, is_fullscreen, _ = resolve_panel_context(card_kwargs, EDITOR_HEIGHT)
     editor_height = "100%"
 
     editor_container_kwargs: Dict[str, Any] = {
@@ -816,8 +824,7 @@ def editor_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
 
 
 def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
-    card_kwargs = card_kwargs or {}
-    is_fullscreen = card_kwargs.get("flex") is not None
+    card_kwargs, is_fullscreen, _ = resolve_panel_context(card_kwargs, LOAD_VIEW_HEIGHT)
 
     viewer_stack_style: Dict[str, Any] = {
         "display": "flex",
@@ -943,8 +950,7 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
 
 
 def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
-    card_kwargs = card_kwargs or {}
-    is_fullscreen = card_kwargs.get("flex") is not None
+    card_kwargs, is_fullscreen, _ = resolve_panel_context(card_kwargs, EXECUTE_HEIGHT)
 
 
     textarea_kwargs: Dict[str, Any] = {
@@ -1157,8 +1163,7 @@ def log_section() -> rx.Component:
 
 
 def state_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
-    card_kwargs = card_kwargs or {}
-    is_fullscreen = card_kwargs.get("flex") is not None
+    card_kwargs, is_fullscreen, _ = resolve_panel_context(card_kwargs, STATE_HEIGHT)
 
     inner_panel_style: Dict[str, Any] = {
         "flex": "1 1 auto",

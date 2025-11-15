@@ -176,6 +176,9 @@ def code_viewer(
             "fontSize": font_size,
             "width": "100%",
         }
+        if not boxed:
+            viewer_style["flex"] = "1 1 auto"
+            viewer_style["minHeight"] = "0"
         if style:
             viewer_style.update(style)
         return rx.code_block(
@@ -279,6 +282,33 @@ def log_entry_item(entry):
         border_radius="10px",
         background=COLORS["bg_secondary"],
     )
+
+
+def panel_style(base_height: str | None, is_fullscreen: bool) -> Dict[str, Any]:
+    """Create a consistent panel container style."""
+    style: Dict[str, Any] = {
+        "width": "100%",
+        "display": "flex",
+        "flexDirection": "column",
+        "gap": "12px",
+        "flex": "1 1 auto",
+    }
+    if is_fullscreen:
+        style.update(
+            {
+                "height": "100%",
+                "minHeight": "0",
+            }
+        )
+    elif base_height:
+        style.update(
+            {
+                "height": base_height,
+                "minHeight": base_height,
+                "maxHeight": base_height,
+            }
+        )
+    return style
 
 def styled_input(**kwargs) -> rx.Component:
     """Styled input field with dark theme."""
@@ -635,29 +665,7 @@ def editor_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
     is_fullscreen = card_kwargs.get("flex") is not None
     editor_height = "100%"
 
-    outer_panel_style: Dict[str, Any] = {
-        "width": "100%",
-        "display": "flex",
-        "flexDirection": "column",
-        "gap": "12px",
-        "flex": "1 1 auto",
-    }
-    if is_fullscreen:
-        outer_panel_style.update(
-            {
-                "height": "100%",
-                "minHeight": "0",
-            }
-        )
-    else:
-        outer_panel_style.update(
-            {
-                "height": EDITOR_HEIGHT,
-                "minHeight": EDITOR_HEIGHT,
-                "maxHeight": EDITOR_HEIGHT,
-            }
-        )
-
+    outer_panel_style = panel_style(EDITOR_HEIGHT, is_fullscreen)
     editor_container_kwargs: Dict[str, Any] = {
         "width": "100%",
         "display": "flex",
@@ -667,11 +675,7 @@ def editor_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
         "height": "100%",
     }
     if is_fullscreen:
-        editor_container_kwargs.update(
-            {
-                "max_height": None,
-            }
-        )
+        editor_container_kwargs.update({"max_height": None})
 
     lint_results_box = rx.cond(
         PlaygroundState.lint_has_results,
@@ -798,28 +802,7 @@ def editor_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
 def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
     card_kwargs = card_kwargs or {}
     is_fullscreen = card_kwargs.get("flex") is not None
-    outer_panel_style: Dict[str, Any] = {
-        "width": "100%",
-        "display": "flex",
-        "flexDirection": "column",
-        "gap": "12px",
-        "flex": "1 1 auto",
-    }
-    if is_fullscreen:
-        outer_panel_style.update(
-            {
-                "height": "100%",
-                "minHeight": "0",
-            }
-        )
-    else:
-        outer_panel_style.update(
-            {
-                "height": LOAD_VIEW_HEIGHT,
-                "minHeight": LOAD_VIEW_HEIGHT,
-                "maxHeight": LOAD_VIEW_HEIGHT,
-            }
-        )
+    outer_panel_style = panel_style(LOAD_VIEW_HEIGHT, is_fullscreen)
 
     viewer_stack_style: Dict[str, Any] = {
         "display": "flex",
@@ -832,21 +815,16 @@ def load_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
 
     def _code_viewer_style(is_full: bool) -> Dict[str, Any]:
         style: Dict[str, Any] = {
-            "width": "100%",
             "maxWidth": "100%",
             "background": COLORS["bg_tertiary"],
             "border": f"1px solid {COLORS['border']}",
             "borderRadius": "8px",
             "padding": "12px",
             "overflow": "auto",
-            "flex": "1 1 auto",
-            "minHeight": "0",
         }
         if is_full:
             style.update(
                 {
-                    "flex": "1 1 auto",
-                    "minHeight": "0",
                     "height": "100%",
                 }
             )
@@ -958,29 +936,7 @@ def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component
     card_kwargs = card_kwargs or {}
     is_fullscreen = card_kwargs.get("flex") is not None
 
-    outer_panel_style: Dict[str, Any] = {
-        "width": "100%",
-        "display": "flex",
-        "flexDirection": "column",
-        "gap": "12px",
-        "flex": "1 1 auto",
-        "minHeight": EXECUTE_HEIGHT,
-    }
-    if is_fullscreen:
-        outer_panel_style.update(
-            {
-                "height": "100%",
-                "minHeight": "0",
-            }
-        )
-    else:
-        outer_panel_style.update(
-            {
-                "height": EXECUTE_HEIGHT,
-                "minHeight": EXECUTE_HEIGHT,
-                "maxHeight": EXECUTE_HEIGHT,
-            }
-        )
+    outer_panel_style = panel_style(EXECUTE_HEIGHT, is_fullscreen)
 
     textarea_kwargs: Dict[str, Any] = {
         "placeholder": 'Kwargs as JSON, e.g. {"to": "alice", "amount": 25}',
@@ -1231,30 +1187,7 @@ def log_section() -> rx.Component:
 def state_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component:
     card_kwargs = card_kwargs or {}
     is_fullscreen = card_kwargs.get("flex") is not None
-    panel_height = "100%" if is_fullscreen else STATE_HEIGHT
-
-    outer_panel_style: Dict[str, Any] = {
-        "width": "100%",
-        "display": "flex",
-        "flexDirection": "column",
-        "gap": "12px",
-        "flex": "1 1 auto",
-    }
-    if is_fullscreen:
-        outer_panel_style.update(
-            {
-                "height": "100%",
-                "minHeight": "0",
-            }
-        )
-    else:
-        outer_panel_style.update(
-            {
-                "height": panel_height,
-                "minHeight": panel_height,
-                "maxHeight": panel_height,
-            }
-        )
+    outer_panel_style = panel_style(STATE_HEIGHT, is_fullscreen)
 
     inner_panel_style: Dict[str, Any] = {
         "flex": "1 1 auto",

@@ -1388,6 +1388,112 @@ def fullscreen_overlay() -> rx.Component:
         ),
     )
 
+def session_conflict_prompt() -> rx.Component:
+    description = (
+        "Another tab just took ownership of the playground. Copy this tab's session "
+        "ID if you want to resume it later, or reactivate it here which will expire the other tab."
+    )
+    info_box_style = {
+        "padding": "10px 12px",
+        "border": f"1px solid {COLORS['border']}",
+        "border_radius": "8px",
+        "background": COLORS["bg_tertiary"],
+        "font_family": "'Fira Code', 'Monaco', 'Courier New', monospace",
+        "font_size": "13px",
+        "word_break": "break-all",
+    }
+
+    body = rx.vstack(
+        rx.hstack(
+            rx.icon(tag="triangle_alert", color=COLORS["warning"], size=32),
+            rx.vstack(
+                rx.heading(
+                    "Session inactive in this tab",
+                    size="6",
+                    color=COLORS["text_primary"],
+                ),
+                rx.text(
+                    description,
+                    color=COLORS["text_secondary"],
+                    size="2",
+                ),
+                spacing="2",
+                align_items="start",
+            ),
+            spacing="3",
+            width="100%",
+            align_items="start",
+        ),
+        rx.vstack(
+            rx.text("This tab's session ID", color=COLORS["text_secondary"], size="1"),
+            rx.code(
+                rx.cond(
+                    PlaygroundState.session_prompt_local_session_id != "",
+                    PlaygroundState.session_prompt_local_session_id,
+                    "Unavailable",
+                ),
+                **info_box_style,
+            ),
+            spacing="1",
+            width="100%",
+        ),
+        rx.vstack(
+            rx.text("Currently active session", color=COLORS["text_secondary"], size="1"),
+            rx.code(
+                rx.cond(
+                    PlaygroundState.session_prompt_new_session_id != "",
+                    PlaygroundState.session_prompt_new_session_id,
+                    "Unknown (tab closed)",
+                ),
+                **info_box_style,
+            ),
+            spacing="1",
+            width="100%",
+        ),
+        rx.vstack(
+            styled_button(
+                "Copy Session ID",
+                color_scheme="cyan",
+                on_click=PlaygroundState.copy_session_prompt_session_id,
+                width="100%",
+            ),
+            styled_button(
+                "Reactivate in this Tab",
+                color_scheme="purple",
+                on_click=PlaygroundState.reactivate_session_prompt,
+                width="100%",
+            ),
+            spacing="3",
+            width="100%",
+        ),
+        spacing="4",
+        width="100%",
+    )
+
+    return rx.cond(
+        PlaygroundState.session_prompt_visible,
+        rx.box(
+            rx.box(
+                body,
+                width=["100%", "440px"],
+                padding="28px",
+                background=COLORS["bg_secondary"],
+                border=f"1px solid {COLORS['border']}",
+                border_radius="16px",
+                box_shadow="0 20px 60px rgba(0, 0, 0, 0.65)",
+            ),
+            position="fixed",
+            inset="0",
+            display="flex",
+            align_items="center",
+            justify_content="center",
+            padding="24px",
+            background="rgba(2, 2, 3, 0.92)",
+            z_index="1100",
+        ),
+        rx.fragment(),
+    )
+
 
 def header() -> rx.Component:
     """Modern header with gradient accent."""
@@ -1499,6 +1605,10 @@ def index() -> rx.Component:
             width="100%",
         ),
         fullscreen_overlay(),
+        session_conflict_prompt(),
+        rx.window_event_listener(
+            on_storage=PlaygroundState.handle_session_broadcast,
+        ),
         background=COLORS["bg_primary"],
         min_height="100vh",
         width="100%",

@@ -62,7 +62,6 @@ LOG_LEVEL_COLORS = {
 ENVIRONMENT_FIELD_KEYS = [field["key"] for field in ENVIRONMENT_FIELDS]
 FULLSCREEN_PANELS = {"write", "load", "execute", "state"}
 
-
 class PlaygroundState(rx.State):
     """Global Reflex state powering the playground UI."""
 
@@ -130,11 +129,12 @@ class PlaygroundState(rx.State):
         self.session_error = ""
         self._last_ui_snapshot_ts = time.time()
         self._refresh_activity_log_panel()
-        return [
+        actions = [
             type(self).refresh_contracts,
             type(self).refresh_state,
             type(self).refresh_environment,
         ]
+        return actions
 
     def _cookie_session_id(self) -> str:
         header = getattr(self.router.headers, "cookie", "") or ""
@@ -320,8 +320,13 @@ class PlaygroundState(rx.State):
             rx.toast.success("Session ID copied."),
         ]
 
+    def _navigate_to_session_route(self, suffix: str):
+        target = self._session_route_url(suffix)
+        script = f"window.location.assign({json.dumps(target)});"
+        return [rx.call_script(script)]
+
     def start_new_session(self):
-        return [rx.redirect(self._session_route_url("new"), is_external=True)]
+        return self._navigate_to_session_route("new")
 
     def update_resume_session_input(self, value: str):
         self.resume_session_input = (value or "").strip().lower()
@@ -338,7 +343,7 @@ class PlaygroundState(rx.State):
             self.session_error = "Session not found."
             return [rx.toast.error(self.session_error)]
         self.session_error = ""
-        return [rx.redirect(self._session_route_url(target), is_external=True)]
+        return self._navigate_to_session_route(target)
 
     def save_code_draft(self):
         session_id = self._require_session()

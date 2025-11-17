@@ -1395,6 +1395,16 @@ def not_found_page() -> rx.Component:
         "The page you’re looking for doesn’t exist or has been moved. "
         "Head back to the main playground or spin up a fresh session."
     )
+    session_script = f"""
+(function() {{
+    const backendBase = {json.dumps((get_config().api_url or "").rstrip("/"))};
+    const path = "/sessions/new";
+    const origin = window.location.origin || "";
+    const nextParam = encodeURIComponent(origin + "/");
+    const target = (backendBase ? backendBase : "") + path + "?next=" + nextParam;
+    window.location.assign(target);
+}})();
+"""
     return rx.box(
         rx.box(
             rx.vstack(
@@ -1424,9 +1434,7 @@ def not_found_page() -> rx.Component:
                     styled_button(
                         "Start New Session",
                         color_scheme="purple",
-                        on_click=rx.call_script(
-                            f"window.location.assign({json.dumps('/sessions/new')});"
-                        ),
+                        on_click=rx.call_script(session_script),
                     ),
                     spacing="3",
                     justify="center",

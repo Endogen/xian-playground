@@ -4,8 +4,6 @@ import ast
 import json
 import os
 import time
-import uuid
-from dataclasses import dataclass
 from http.cookies import SimpleCookie
 from typing import Dict, List
 from urllib.parse import quote
@@ -63,43 +61,6 @@ LOG_LEVEL_COLORS = {
 }
 ENVIRONMENT_FIELD_KEYS = [field["key"] for field in ENVIRONMENT_FIELDS]
 FULLSCREEN_PANELS = {"write", "load", "execute", "state"}
-SESSION_BROADCAST_STORAGE_KEY = "xian-playground:session-broadcast"
-
-
-@dataclass(slots=True)
-class SessionBroadcastEvent:
-    session_id: str
-    tab_id: str
-    nonce: str
-    timestamp: float
-
-
-def parse_session_broadcast(raw: str | None) -> SessionBroadcastEvent | None:
-    if not raw:
-        return None
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError:
-        return None
-    session_id = str(data.get("sessionId", "")).strip().lower()
-    if not SessionRepository.is_valid_session_id(session_id):
-        return None
-    tab_id = str(data.get("tabId", "")).strip()
-    nonce = str(data.get("nonce", "")).strip()
-    if not nonce:
-        return None
-    timestamp_raw = data.get("timestamp", 0.0)
-    try:
-        timestamp = float(timestamp_raw)
-    except (TypeError, ValueError):
-        return None
-    return SessionBroadcastEvent(
-        session_id=session_id,
-        tab_id=tab_id,
-        nonce=nonce,
-        timestamp=timestamp,
-    )
-
 
 class PlaygroundState(rx.State):
     """Global Reflex state powering the playground UI."""
@@ -119,12 +80,6 @@ class PlaygroundState(rx.State):
     session_id: str = ""
     session_error: str = ""
     resume_session_input: str = ""
-    session_prompt_visible: bool = False
-    session_prompt_new_session_id: str = ""
-    session_prompt_local_session_id: str = ""
-    session_prompt_source_tab_id: str = ""
-    _session_prompt_nonce: str = ""
-    _tab_id: str = ""
     _last_ui_snapshot_ts: float = 0.0
 
     state_is_editing: bool = False
@@ -153,22 +108,12 @@ class PlaygroundState(rx.State):
     _state_edit_snapshot: str = ""
     activity_log_view_key: str = "activity-log"
 
-    def _ensure_tab_id(self) -> str:
-        if not self._tab_id:
-            self._tab_id = uuid.uuid4().hex
-        return self._tab_id
-
     def on_load(self):
-        self._ensure_tab_id()
-        self.session_prompt_visible = False
-        self.session_prompt_new_session_id = ""
-        self.session_prompt_source_tab_id = ""
         session_id = self._cookie_session_id()
         if not session_id:
             self.session_error = "Session cookie missing. Issuing a fresh session."
             return [rx.redirect(self._session_route_url("new"))]
         self.session_id = session_id
-        self.session_prompt_local_session_id = session_id
         try:
             metadata = session_runtime.ensure_exists(session_id)
         except SessionNotFoundError:
@@ -189,7 +134,6 @@ class PlaygroundState(rx.State):
             type(self).refresh_state,
             type(self).refresh_environment,
         ]
-        actions.extend(self._emit_session_broadcast(self.session_id))
         return actions
 
     def _cookie_session_id(self) -> str:
@@ -243,44 +187,6 @@ class PlaygroundState(rx.State):
     def _refresh_activity_log_panel(self):
         seed = f"{self.session_id or 'log'}-{time.time():.6f}"
         self.activity_log_view_key = seed
-
-    def _emit_session_broadcast(
-        self,
-        session_id: str,
-        *,
-        redirect_url: str | None = None,
-    ):
-        normalized = (session_id or "").strip().lower()
-        if not SessionRepository.is_valid_session_id(normalized):
-            if redirect_url:
-                return [rx.redirect(redirect_url, is_external=True)]
-            return []
-        tab_id = self._ensure_tab_id()
-        nonce = uuid.uuid4().hex
-        payload = {
-            "sessionId": normalized,
-            "tabId": tab_id,
-            "nonce": nonce,
-            "timestamp": time.time(),
-        }
-        script_lines = [
-            "(function() {",
-            "    try {",
-            f"        const payload = {json.dumps(payload)};",
-            f"        window.localStorage.setItem({json.dumps(SESSION_BROADCAST_STORAGE_KEY)}, JSON.stringify(payload));",
-            "    } catch (error) {",
-            '        console.error("Session broadcast failed", error);',
-            "    }",
-        ]
-        if redirect_url:
-            script_lines.append(f"    window.location.assign({json.dumps(redirect_url)});")
-        script_lines.append("})();")
-        self._session_prompt_nonce = nonce
-        return [rx.call_script("\n".join(script_lines))]
-
-    def _redirect_with_session_activation(self, session_id: str):
-        target_url = self._session_route_url(session_id)
-        return self._emit_session_broadcast(session_id, redirect_url=target_url)
 
     def _log_event(
         self,
@@ -406,34 +312,6 @@ class PlaygroundState(rx.State):
             return f"/sessions/{path}{query}"
         return f"{base}/sessions/{path}{query}"
 
-    def handle_session_broadcast(self, event_or_key, old_value: str = "", new_value: str = "", url: str = ""):
-        if isinstance(event_or_key, dict):
-            event = event_or_key or {}
-            key = str(event.get("key", "")).strip()
-            new_value = event.get("newValue") or ""
-        else:
-            key = str(event_or_key or "").strip()
-        if key != SESSION_BROADCAST_STORAGE_KEY:
-            return
-        payload = parse_session_broadcast(new_value)
-        if payload is None:
-            return
-        if payload.nonce == self._session_prompt_nonce:
-            return
-        current_id = (self.session_id or "").strip().lower()
-        if payload.session_id == current_id:
-            self.session_prompt_visible = False
-            self.session_prompt_new_session_id = ""
-            self.session_prompt_source_tab_id = ""
-            self.session_prompt_local_session_id = self.session_id
-            self._session_prompt_nonce = payload.nonce
-            return
-        self.session_prompt_visible = True
-        self.session_prompt_new_session_id = payload.session_id
-        self.session_prompt_local_session_id = self.session_id
-        self.session_prompt_source_tab_id = payload.tab_id
-        self._session_prompt_nonce = payload.nonce
-
     def copy_session_id(self):
         if not self.session_id:
             return [rx.toast.error("Session unavailable. Reload the page.")]
@@ -442,18 +320,13 @@ class PlaygroundState(rx.State):
             rx.toast.success("Session ID copied."),
         ]
 
-    def copy_session_prompt_session_id(self):
-        target = (self.session_prompt_local_session_id or self.session_id or "").strip()
-        if not target:
-            return [rx.toast.error("Session unavailable. Reload the page.")]
-        return [
-            rx.set_clipboard(target),
-            rx.toast.success("Session ID copied."),
-        ]
+    def _navigate_to_session_route(self, suffix: str):
+        target = self._session_route_url(suffix)
+        script = f"window.location.assign({json.dumps(target)});"
+        return [rx.call_script(script)]
 
     def start_new_session(self):
-        metadata = session_runtime.create_session()
-        return self._redirect_with_session_activation(metadata.session_id)
+        return self._navigate_to_session_route("new")
 
     def update_resume_session_input(self, value: str):
         self.resume_session_input = (value or "").strip().lower()
@@ -470,13 +343,7 @@ class PlaygroundState(rx.State):
             self.session_error = "Session not found."
             return [rx.toast.error(self.session_error)]
         self.session_error = ""
-        return self._redirect_with_session_activation(target)
-
-    def reactivate_session_prompt(self):
-        target = (self.session_prompt_local_session_id or "").strip().lower()
-        if not SessionRepository.is_valid_session_id(target):
-            return [rx.toast.error("Session unavailable. Reload the page.")]
-        return self._redirect_with_session_activation(target)
+        return self._navigate_to_session_route(target)
 
     def save_code_draft(self):
         session_id = self._require_session()

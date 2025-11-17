@@ -1609,6 +1609,11 @@ app.add_page(
 
 app._api.add_middleware(SessionCookieMiddleware)
 
+# Serve playground favicon across every page.
+app.head_components.append(
+    rx.el.link(rel="icon", type="image/png", href="/favicon.png")
+)
+
 
 def _frontend_redirect_target(request: Request) -> str:
     next_param = request.query_params.get("next")

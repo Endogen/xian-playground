@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any, Dict
 
 import reflex as rx
@@ -1388,6 +1389,73 @@ def fullscreen_overlay() -> rx.Component:
         ),
     )
 
+
+def not_found_page() -> rx.Component:
+    message = (
+        "The page you’re looking for doesn’t exist or has been moved. "
+        "Head back to the main playground or spin up a fresh session."
+    )
+    return rx.box(
+        rx.box(
+            rx.vstack(
+                rx.image(
+                    src="/favicon.png",
+                    alt="Xian Playground logo",
+                    width="84px",
+                    height="84px",
+                ),
+                rx.heading(
+                    "404 – Page Not Found",
+                    size="7",
+                    color=COLORS["text_primary"],
+                ),
+                rx.text(
+                    message,
+                    color=COLORS["text_secondary"],
+                    text_align="center",
+                    line_height="1.7",
+                ),
+                rx.hstack(
+                    styled_button(
+                        "Return to Playground",
+                        color_scheme="cyan",
+                        on_click=rx.redirect("/"),
+                    ),
+                    styled_button(
+                        "Start New Session",
+                        color_scheme="purple",
+                        on_click=rx.call_script(
+                            f"window.location.assign({json.dumps('/sessions/new')});"
+                        ),
+                    ),
+                    spacing="3",
+                    justify="center",
+                    wrap="wrap",
+                    width="100%",
+                ),
+                spacing="4",
+                align_items="center",
+                width="100%",
+            ),
+            width="100%",
+            max_width="520px",
+            background=COLORS["bg_secondary"],
+            padding="40px",
+            border_radius="20px",
+            border=f"1px solid {COLORS['border']}",
+            box_shadow="0 35px 80px rgba(0, 0, 0, 0.55)",
+            gap="6",
+        ),
+        min_height="100vh",
+        width="100%",
+        background=COLORS["bg_primary"],
+        display="flex",
+        align_items="center",
+        justify_content="center",
+        padding="32px",
+    )
+
+
 def header() -> rx.Component:
     """Modern header with gradient accent."""
     return rx.box(
@@ -1523,6 +1591,12 @@ app.add_page(
     index,
     title="Xian Contracting Playground",
     on_load=PlaygroundState.on_load,
+)
+
+app.add_page(
+    not_found_page,
+    route="404",
+    title="Page Not Found",
 )
 
 app._api.add_middleware(SessionCookieMiddleware)

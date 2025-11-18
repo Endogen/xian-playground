@@ -80,6 +80,7 @@ class PlaygroundState(rx.State):
     session_id: str = ""
     session_error: str = ""
     resume_session_input: str = ""
+    last_stamps_used: int = 0
     _last_ui_snapshot_ts: float = 0.0
 
     state_is_editing: bool = False
@@ -907,15 +908,18 @@ class PlaygroundState(rx.State):
     def run_contract(self):
         if not self.selected_contract:
             self.run_result = "Select a deployed contract first."
+            self.last_stamps_used = 0
             return
         if not self.function_name:
             self.run_result = "Select a function to execute."
+            self.last_stamps_used = 0
             return
 
         try:
             kwargs = self._parse_kwargs()
         except ValueError as exc:
             self.run_result = str(exc)
+            self.last_stamps_used = 0
             return [rx.toast.error(self.run_result)]
 
         session_id = self._require_session()
@@ -942,6 +946,7 @@ class PlaygroundState(rx.State):
                 extra_lines={"Call": detail_text},
             )
             self.run_result = message
+            self.last_stamps_used = 0
             return [rx.toast.error(self.run_result)]
         except Exception as exc:
             message = self._log_generic_failure(
@@ -951,9 +956,11 @@ class PlaygroundState(rx.State):
                 detail_text,
             )
             self.run_result = message
+            self.last_stamps_used = 0
             return [rx.toast.error(self.run_result)]
 
         self.run_result = call_result.as_string()
+        self.last_stamps_used = call_result.stamps_used
         detail = self.run_result if self.run_result else ""
         result_preview = self._format_log_json(call_result.result)
         detail_payload = "\n".join([detail_text, f"Result: {result_preview}"])

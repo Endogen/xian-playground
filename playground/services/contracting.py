@@ -100,6 +100,7 @@ def _serialize_value(value: Any) -> Any:
 @dataclass
 class ContractingCallResult:
     result: Any
+    stamps_used: int = 0
 
     def as_string(self) -> str:
         if self.result is None:
@@ -418,11 +419,28 @@ class ContractingService:
             if not hasattr(abstract, function):
                 raise ValueError(f"Function '{function}' not found on contract '{contract}'.")
 
-            fn = getattr(abstract, function)
-            result = fn(**kwargs)
+            executor = self._client.executor
+            previous_bypass = executor.bypass_balance_amount
+            executor.bypass_balance_amount = True
+            try:
+                output = abstract._abstract_function_call(
+                    signer=self._client.signer,
+                    executor=executor,
+                    contract_name=abstract.name,
+                    func=function,
+                    environment=self._client.environment,
+                    metering=True,
+                    return_full_output=True,
+                    **kwargs,
+                )
+            finally:
+                executor.bypass_balance_amount = previous_bypass
             self._driver.commit()
 
-        return ContractingCallResult(result=result)
+        return ContractingCallResult(
+            result=output.get("result"),
+            stamps_used=int(output.get("stamps_used") or 0),
+        )
 
     def dump_state(self, show_internal: bool = False) -> str:
         snapshot: Dict[str, Dict[str, Any]] = {}
@@ -544,4 +562,3 @@ class ContractingService:
             return ContractDecompiler().decompile(source)
         except Exception:
             return source
-

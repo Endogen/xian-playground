@@ -1011,6 +1011,38 @@ def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component
         ),
     )
 
+    stamps_indicator = rx.cond(
+        PlaygroundState.last_stamps_used <= 0,
+        rx.fragment(),
+        rx.box(
+            rx.hstack(
+                rx.icon(tag="gauge", size=18, color=COLORS["accent_cyan"]),
+                rx.text(
+                    "Stamps used (last run)",
+                    color=COLORS["text_secondary"],
+                    size="2",
+                ),
+                rx.spacer(),
+                rx.code(
+                    PlaygroundState.last_stamps_used,
+                    color=COLORS["accent_cyan"],
+                    font_size="13px",
+                    padding="4px 8px",
+                    border_radius="6px",
+                    background=COLORS["bg_tertiary"],
+                ),
+                align_items="center",
+                width="100%",
+                gap="8px",
+            ),
+            width="100%",
+            padding="10px 14px",
+            background=COLORS["bg_tertiary"],
+            border=f"1px solid {COLORS['border']}",
+            border_radius="10px",
+        ),
+    )
+
     return card(
         section_header(
             "Execute Contract",
@@ -1046,6 +1078,7 @@ def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component
                 ),
                 width="100%",
             ),
+            stamps_indicator,
             result_view,
             base_height=EXECUTE_HEIGHT,
             is_fullscreen=is_fullscreen,

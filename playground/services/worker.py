@@ -61,7 +61,6 @@ class ContractingWorker(mp.Process):
         self._child_conn = child_conn
         super().start()
         self._lock = threading.Lock()
-        self._lock = threading.Lock()
 
     def invoke(self, command: str, *args, **kwargs):
         if self._stopped:

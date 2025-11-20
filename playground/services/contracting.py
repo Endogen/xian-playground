@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import decimal
 import json
+import re
 import threading
 from dataclasses import dataclass
 from datetime import datetime
@@ -67,6 +68,15 @@ def _default_storage_home() -> Path:
     storage = root / ".contract_state"
     storage.mkdir(parents=True, exist_ok=True)
     return storage
+
+
+_CONTRACT_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_]{1,64}$")
+
+
+def _valid_contract_name(name: str) -> bool:
+    """Return True if the contract name is safe for storage."""
+
+    return bool(_CONTRACT_NAME_PATTERN.fullmatch(name))
 
 
 def _is_export_decorator(node: ast.AST) -> bool:
@@ -308,6 +318,10 @@ class ContractingService:
             raise ValueError("Contract name cannot be empty.")
         if clean_name == "submission":
             raise ValueError("Contract name 'submission' is reserved.")
+        if not _valid_contract_name(clean_name):
+            raise ValueError(
+                "Contract name must contain only letters, digits, or underscores and be at most 64 characters."
+            )
         if not code or not code.strip():
             raise ValueError("Contract code cannot be empty.")
 
@@ -544,4 +558,3 @@ class ContractingService:
             return ContractDecompiler().decompile(source)
         except Exception:
             return source
-

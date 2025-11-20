@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor
 from typing import List
 
 from xian_linter.linter import LintError_Model, lint_code_inline  # type: ignore
@@ -27,12 +26,8 @@ def _format_error(error: LintError_Model) -> str:
     return f"{location}{message}"
 
 
-_EXECUTOR = ThreadPoolExecutor(max_workers=1)
-
-
 def lint_contract(code: str) -> List[str]:
     """Run the linter synchronously using xian-linter's inline helper."""
 
-    future = _EXECUTOR.submit(lint_code_inline, code)
-    errors = future.result()
+    errors = lint_code_inline(code)
     return [_format_error(error) for error in errors]

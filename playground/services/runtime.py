@@ -132,7 +132,11 @@ class SessionRuntimeManager:
         self._reaper_thread: threading.Thread | None = None
         self._worker_stop_timeout = DEFAULT_WORKER_DRAIN_TIMEOUT
         self._session_ttl_seconds = max(0.0, DEFAULT_SESSION_TTL_SECONDS)
-        if self._max_idle_seconds > 0 and self._reaper_interval > 0:
+        reaper_needed = (
+            self._reaper_interval > 0
+            and (self._max_idle_seconds > 0 or self._session_ttl_seconds > 0)
+        )
+        if reaper_needed:
             self._start_reaper()
 
     @property

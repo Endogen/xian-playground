@@ -94,6 +94,19 @@ class SessionRuntimeWorkerLifecycleTest(unittest.TestCase):
             "Newest worker should remain active.",
         )
 
+    def test_reaper_starts_when_ttl_enabled_even_if_idle_disabled(self) -> None:
+        manager = SessionRuntimeManager(
+            repository=self.repo,
+            max_idle_seconds=0,
+            reap_interval_seconds=0.01,
+            worker_factory=FakeWorker,
+        )
+        self.addCleanup(manager.shutdown)
+        self.assertIsNotNone(
+            manager._reaper_thread,
+            "Reaper should start to enforce session TTL even when idle trim is disabled.",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

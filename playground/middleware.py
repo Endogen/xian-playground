@@ -34,8 +34,22 @@ def _infer_secure_cookie(request: Request | None) -> bool:
     """Derive whether to mark cookies secure based on the request/deploy URL."""
 
     if request is not None:
+        forwarded_header = request.headers.get("forwarded", "")
+        forwarded_proto = ""
+        if forwarded_header:
+            try:
+                # RFC 7239 allows multiple Forwarded entries; use the first proto value.
+                first_entry = forwarded_header.split(",")[0]
+                parts = [part.strip() for part in first_entry.split(";")]
+                for part in parts:
+                    if part.lower().startswith("proto="):
+                        forwarded_proto = part.split("=", 1)[1].strip().lower()
+                        break
+            except Exception:
+                forwarded_proto = ""
+
         forwarded = (request.headers.get("x-forwarded-proto") or "").split(",")[0].strip().lower()
-        scheme = forwarded or request.url.scheme.lower()
+        scheme = forwarded_proto or forwarded or request.url.scheme.lower()
         if scheme == "https":
             return True
 

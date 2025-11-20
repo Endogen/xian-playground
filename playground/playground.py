@@ -1632,7 +1632,7 @@ def _frontend_redirect_target(request: Request) -> str:
 async def create_session_route(request: Request):
     metadata = session_runtime.create_session()
     response = RedirectResponse(_frontend_redirect_target(request))
-    issue_session_cookie(response, metadata.session_id)
+    issue_session_cookie(response, metadata.session_id, request=request)
     return response
 
 
@@ -1645,5 +1645,5 @@ async def resume_session_route(request: Request):
         return RedirectResponse("/sessions/new")
     metadata = session_runtime.ensure_exists(raw)
     response = RedirectResponse(_frontend_redirect_target(request))
-    issue_session_cookie(response, metadata.session_id)
+    issue_session_cookie(response, metadata.session_id, request=request)
     return response

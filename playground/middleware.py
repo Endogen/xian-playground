@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import os
+from urllib.parse import urlparse
 
+from reflex.config import get_config
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import Response
@@ -16,15 +18,45 @@ from .services import (
 )
 
 
-def _secure_cookie_default() -> bool:
-    value = os.getenv("PLAYGROUND_SESSION_COOKIE_SECURE", "").lower()
-    return value in {"1", "true", "yes", "on"}
+def _env_secure_cookie_override() -> bool | None:
+    raw = os.getenv("PLAYGROUND_SESSION_COOKIE_SECURE")
+    if raw is None or raw.strip() == "":
+        return None
+    value = raw.strip().lower()
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"0", "false", "no", "off"}:
+        return False
+    return None
+
+
+def _infer_secure_cookie(request: Request | None) -> bool:
+    """Derive whether to mark cookies secure based on the request/deploy URL."""
+
+    if request is not None:
+        forwarded = (request.headers.get("x-forwarded-proto") or "").split(",")[0].strip().lower()
+        scheme = forwarded or request.url.scheme.lower()
+        if scheme == "https":
+            return True
+
+    deploy = (get_config().deploy_url or "").strip()
+    if deploy:
+        parsed = urlparse(deploy)
+        if parsed.scheme.lower() == "https":
+            return True
+
+    return False
 
 
 def issue_session_cookie(
-    response: Response, session_id: str, *, secure: bool | None = None
+    response: Response,
+    session_id: str,
+    *,
+    secure: bool | None = None,
+    request: Request | None = None,
 ) -> None:
-    flag = _secure_cookie_default() if secure is None else secure
+    override = _env_secure_cookie_override() if secure is None else secure
+    flag = override if override is not None else _infer_secure_cookie(request)
     response.set_cookie(
         SESSION_COOKIE_NAME,
         session_id,
@@ -41,7 +73,7 @@ class SessionCookieMiddleware(BaseHTTPMiddleware):
 
     def __init__(self, app, *, secure: bool | None = None):
         super().__init__(app)
-        self._secure = _secure_cookie_default() if secure is None else secure
+        self._secure_override = _env_secure_cookie_override() if secure is None else secure
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         incoming = request.cookies.get(SESSION_COOKIE_NAME)
@@ -56,5 +88,10 @@ class SessionCookieMiddleware(BaseHTTPMiddleware):
             request.state.session_id = None
         response = await call_next(request)
         if metadata and (created or incoming != metadata.session_id):
-            issue_session_cookie(response, metadata.session_id, secure=self._secure)
+            issue_session_cookie(
+                response,
+                metadata.session_id,
+                secure=self._secure_override,
+                request=request,
+            )
         return response

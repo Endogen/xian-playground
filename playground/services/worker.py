@@ -125,6 +125,31 @@ class ContractingWorker(mp.Process):
         self.__dict__.update(state)
         self._lock = None
 
+    def _handle_timeout(self) -> None:
+        """Forcefully tear down a hung worker after an RPC timeout."""
+
+        self._dead = True
+        try:
+            parent_conn = self._parent_conn
+            if parent_conn is not None:
+                try:
+                    parent_conn.close()
+                finally:
+                    self._parent_conn = None
+
+            child_conn = self._child_conn
+            if child_conn is not None:
+                try:
+                    child_conn.close()
+                finally:
+                    self._child_conn = None
+
+            if self.is_alive():
+                self.terminate()
+                self.join(timeout=1)
+        finally:
+            self._stopped = True
+
 
 class SessionServiceProxy:
     """Thin proxy forwarding attribute access to the worker process."""
@@ -156,20 +181,6 @@ class SessionServiceProxy:
 
     def stop(self) -> None:
         self._worker.stop()
-
-    def _handle_timeout(self) -> None:
-        self._dead = True
-        try:
-            if self._parent_conn is not None:
-                self._parent_conn.close()
-                self._parent_conn = None
-            if self._child_conn is not None:
-                self._child_conn.close()
-                self._child_conn = None
-            if self.is_alive():
-                self.terminate()
-        finally:
-            self._stopped = True
 
 
 @dataclass(slots=True)

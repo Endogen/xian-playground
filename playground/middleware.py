@@ -11,6 +11,7 @@ from starlette.responses import Response
 from .services import (
     SESSION_COOKIE_MAX_AGE,
     SESSION_COOKIE_NAME,
+    SessionNotFoundError,
     session_runtime,
 )
 
@@ -44,9 +45,16 @@ class SessionCookieMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         incoming = request.cookies.get(SESSION_COOKIE_NAME)
-        metadata, created = session_runtime.resolve_or_create(incoming)
-        request.state.session_id = metadata.session_id
+        try:
+            metadata, created = session_runtime.resolve_or_create(
+                incoming,
+                create_if_missing=False,
+            )
+            request.state.session_id = metadata.session_id
+        except SessionNotFoundError:
+            metadata, created = None, False
+            request.state.session_id = None
         response = await call_next(request)
-        if created or incoming != metadata.session_id:
+        if metadata and (created or incoming != metadata.session_id):
             issue_session_cookie(response, metadata.session_id, secure=self._secure)
         return response

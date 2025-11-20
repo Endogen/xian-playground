@@ -6,7 +6,11 @@ import unittest
 from pathlib import Path
 from typing import Any
 
-from playground.services.runtime import SessionRepository, SessionRuntimeManager
+from playground.services.runtime import (
+    SessionNotFoundError,
+    SessionRepository,
+    SessionRuntimeManager,
+)
 
 
 class FakeWorker:
@@ -106,6 +110,14 @@ class SessionRuntimeWorkerLifecycleTest(unittest.TestCase):
             manager._reaper_thread,
             "Reaper should start to enforce session TTL even when idle trim is disabled.",
         )
+
+    def test_invalid_session_does_not_auto_create(self) -> None:
+        manager = self._manager(max_idle_seconds=0, reap_interval_seconds=0)
+        with self.assertRaises(SessionNotFoundError):
+            manager.resolve_or_create("not-a-session", create_if_missing=False)
+        with self.assertRaises(SessionNotFoundError):
+            manager.resolve_or_create(None, create_if_missing=False)
+        self.assertEqual(self.repo.list_sessions(), [])
 
 
 if __name__ == "__main__":

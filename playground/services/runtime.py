@@ -143,7 +143,12 @@ class SessionRuntimeManager:
     def repository(self) -> SessionRepository:
         return self._repository
 
-    def resolve_or_create(self, session_id: str | None) -> tuple[SessionMetadata, bool]:
+    def resolve_or_create(
+        self,
+        session_id: str | None,
+        *,
+        create_if_missing: bool = True,
+    ) -> tuple[SessionMetadata, bool]:
         """Return existing metadata for session_id or create a new session."""
         if session_id and SessionRepository.is_valid_session_id(session_id):
             try:
@@ -151,6 +156,10 @@ class SessionRuntimeManager:
                 return metadata, False
             except SessionNotFoundError:
                 pass
+
+        if not create_if_missing:
+            raise SessionNotFoundError(session_id or "missing-session-id")
+
         metadata = self._repository.create_session()
         return metadata, True
 

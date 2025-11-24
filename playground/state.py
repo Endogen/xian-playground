@@ -112,13 +112,13 @@ class PlaygroundState(rx.State):
         session_id = self._cookie_session_id()
         if not session_id:
             self.session_error = "Session cookie missing. Issuing a fresh session."
-            return [rx.redirect(self._session_route_url("new"))]
+            return self._navigate_to_session_route("new")
         self.session_id = session_id
         try:
             metadata = session_runtime.ensure_exists(session_id)
         except SessionNotFoundError:
             self.session_error = "Session not found. Creating a new one."
-            return [rx.redirect(self._session_route_url("new"))]
+            return self._navigate_to_session_route("new")
 
         self._apply_ui_state(metadata.ui_state or {})
         env_snapshot = session_runtime.get_environment_snapshot(session_id)

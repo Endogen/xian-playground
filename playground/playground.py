@@ -973,22 +973,51 @@ def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component
         "flex_direction": "column",
     }
 
+    result_header = rx.hstack(
+        rx.hstack(
+            rx.icon(tag="terminal", size=18, color=COLORS["accent_cyan"]),
+            rx.heading(
+                "Result",
+                size="3",
+                color=COLORS["text_primary"],
+                font_weight="600",
+            ),
+            align_items="center",
+            gap="8px",
+        ),
+        rx.spacer(),
+        rx.cond(
+            PlaygroundState.last_stamps_used <= 0,
+            rx.fragment(),
+            rx.hstack(
+                rx.icon(tag="gauge", size=16, color=COLORS["accent_cyan"]),
+                rx.text(
+                    "Stamps used:",
+                    color=COLORS["text_secondary"],
+                    size="2",
+                ),
+                rx.code(
+                    PlaygroundState.last_stamps_used,
+                    color=COLORS["accent_cyan"],
+                    font_size="12px",
+                    padding="2px 6px",
+                    border_radius="6px",
+                    background=COLORS["bg_tertiary"],
+                ),
+                align_items="center",
+                gap="6px",
+            ),
+        ),
+        align_items="center",
+        width="100%",
+        gap="8px",
+    )
+
     result_view = rx.cond(
         PlaygroundState.run_result == "",
         rx.fragment(),
         rx.vstack(
-            rx.hstack(
-                rx.icon(tag="terminal", size=18, color=COLORS["accent_cyan"]),
-                rx.heading(
-                    "Result",
-                    size="3",
-                    color=COLORS["text_primary"],
-                    font_weight="600",
-                ),
-                align_items="center",
-                gap="8px",
-                width="100%",
-            ),
+            result_header,
             code_viewer(
                 PlaygroundState.run_result,
                 "json",
@@ -1010,7 +1039,6 @@ def execution_section(card_kwargs: Dict[str, Any] | None = None) -> rx.Component
             width="100%",
         ),
     )
-
     return card(
         section_header(
             "Execute Contract",

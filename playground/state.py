@@ -65,6 +65,7 @@ FULLSCREEN_PANELS = {"write", "load", "execute", "state"}
 class PlaygroundState(rx.State):
     """Global Reflex state powering the playground UI."""
 
+    bootstrapping: bool = True
     code_editor: str = DEFAULT_CONTRACT
     code_editor_revision: int = 0
     contract_name: str = DEFAULT_CONTRACT_NAME
@@ -109,6 +110,7 @@ class PlaygroundState(rx.State):
     activity_log_view_key: str = "activity-log"
 
     def on_load(self):
+        self.bootstrapping = True
         session_id = self._cookie_session_id()
         if not session_id:
             self.session_error = "Session cookie missing. Issuing a fresh session."
@@ -134,6 +136,7 @@ class PlaygroundState(rx.State):
             type(self).refresh_state,
             type(self).refresh_environment,
         ]
+        self.bootstrapping = False
         return actions
 
     def _cookie_session_id(self) -> str:
